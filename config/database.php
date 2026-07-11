@@ -60,7 +60,7 @@ return [
             'engine' => null,
             'options' => [
             // Ensure this is set to use the system CA bundle or null
-             PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA', null),
+             PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA') ? env('MYSQL_ATTR_SSL_CA') : null,
             ],
         ],
 
