@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Print RIS Form</title>
+    <style>
+        /* --- PRINT SETTINGS --- */
+        @page {
+            size: letter portrait;
+            margin: 0.25in;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            background-color: #525659;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .print-toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background-color: #323639;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .btn-action {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            border: none;
+        }
+
+        .btn-print {
+            background-color: #8ab4f8;
+            color: #202124;
+        }
+
+        .btn-back {
+            background-color: transparent;
+            color: #e8eaed;
+            border: 1px solid #5f6368;
+        }
+
+        /* Simulated Paper */
+        .paper-preview {
+            background-color: #fff;
+            width: 8.5in;
+            height: 10.5in;
+            margin: 60px auto 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
+
+        /* Exact Form Structure */
+        .form-container {
+            width: 100%;
+            height: 4.95in;
+            border: 2px solid #000;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header-table {
+            display: flex;
+            height: 65px;
+            border-bottom: 2px solid #000;
+        }
+
+        .header-col-1,
+        .header-col-3 {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #000;
+            padding: 2px;
+        }
+
+        .header-col-1 {
+            width: 14%;
+        }
+
+        .header-col-3 {
+            width: 10%;
+            flex-direction: column;
+        }
+
+        .header-col-2 {
+            width: 62%;
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title-box {
+            flex-grow: 1;
+            border-bottom: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .doc-title-label {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 7px;
+        }
+
+        .header-docno-box {
+            height: 18px;
+            display: flex;
+            align-items: center;
+            padding-left: 6px;
+            font-size: 9px;
+        }
+
+        .header-col-4 {
+            width: 14%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-top: 4px;
+        }
+
+        .capiz-logo {
+            max-height: 55px;
+            max-width: 90%;
+            object-fit: contain;
+        }
+
+        .rmph-logo {
+            max-height: 35px;
+            max-width: 90%;
+            object-fit: contain;
+        }
+
+        .info-section {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 8px;
+            border-bottom: 2px solid #000;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            flex-grow: 1;
+            height: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            font-size: 10px;
+        }
+
+        th {
+            background-color: #f8f8f8;
+            font-weight: bold;
+            height: 18px;
+            font-size: 9px;
+        }
+
+        .col-code {
+            width: 8%;
+        }
+
+        .col-unit {
+            width: 6%;
+        }
+
+        .col-desc {
+            width: 38%;
+            text-align: left;
+        }
+
+        .col-qty {
+            width: 8%;
+        }
+
+        .col-avail {
+            width: 12%;
+        }
+
+        .col-bal {
+            width: 12%;
+        }
+
+        .col-rem {
+            width: 16%;
+        }
+
+        .purpose-section {
+            display: flex;
+            border-bottom: 2px solid #000;
+            border-top: 2px solid #000;
+            font-size: 9px;
+            align-items: stretch;
+            min-height: 20px;
+        }
+
+        .purpose-label {
+            width: 85px;
+            font-weight: bold;
+            border-right: 1px solid #000;
+            padding: 2px 6px;
+            display: flex;
+            align-items: center;
+        }
+
+        .purpose-content {
+            padding: 2px 6px;
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .signature-grid {
+            display: flex;
+            width: 100%;
+            border-bottom: 2px solid #000;
+        }
+
+        .sig-col {
+            flex: 1;
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sig-col:last-child {
+            border-right: none;
+        }
+
+        .sig-header {
+            padding: 2px 4px;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+            font-size: 8px;
+        }
+
+        .sig-row {
+            display: flex;
+            border-bottom: 1px solid #000;
+            min-height: 18px;
+        }
+
+        .sig-row:last-child {
+            border-bottom: none;
+        }
+
+        .sig-label {
+            width: 65px;
+            border-right: 1px solid #000;
+            font-size: 7px;
+            display: flex;
+            align-items: center;
+            padding-left: 4px;
+            font-weight: normal;
+        }
+
+        .sig-value {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 8px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .supply-section-title {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            font-size: 9px;
+            font-weight: bold;
+            padding: 3px;
+            border-bottom: 2px solid #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .cut-line {
+            text-align: center;
+            font-size: 12px;
+            color: #555;
+            height: 12px;
+            line-height: 12px;
+            overflow: hidden;
+            margin: 0.05in 0;
+        }
+
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+                margin: 0;
+            }
+
+            .print-toolbar {
+                display: none;
+            }
+
+            .paper-preview {
+                margin: 0;
+                box-shadow: none;
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="print-toolbar">
+        <button onclick="window.print()" class="btn-action btn-print">Print RIS Form</button>
+        <a href="/dashboard" class="btn-action btn-back">Return to Dashboard</a>
+    </div>
+
+    <div class="paper-preview">
+        @for ($copy = 0; $copy < 2; $copy++)
+            <div class="form-container">
+
+                <div class="header-table">
+                    <div class="header-col-1">
+                        <img src="{{ asset('images/capiz.jpg') }}" class="capiz-logo" alt="Capiz">
+                    </div>
+                    <div class="header-col-2">
+                        <div class="header-title-box">
+                            <span class="doc-title-label">Document Title:</span>
+                            <strong style="font-size: 13px; margin-top: 6px;">REQUISITION AND ISSUE SLIP (RIS)
+                                FORM</strong>
+                        </div>
+                        <div class="header-docno-box">Document No: RMH-PPS-F01</div>
+                    </div>
+                    <div class="header-col-3">
+                        <span style="font-size: 7px;">Rev No</span>
+                        <strong style="font-size: 13px;">00</strong>
+                    </div>
+                    <div class="header-col-4">
+                        <img src="{{ asset('images/rmph.jpg') }}" class="rmph-logo" alt="RMPH">
+                        <div style="font-size: 6px; font-weight: bold; text-align: center; margin-top: 2px;">
+                            PHILHEALTH<br>ACCREDITED</div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <div>Department/Section/Unit: <span
+                            style="text-decoration: underline; text-transform: uppercase;">{{ $batch_requests->first()->department_name }}</span>
+                    </div>
+                    <div>Date: <span
+                            style="text-decoration: underline;">{{ \Carbon\Carbon::parse($batch_requests->first()->created_at)->format('F d, Y') }}</span>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="col-code">Stock Code</th>
+                            <th class="col-unit">Unit</th>
+                            <th class="col-desc">Description</th>
+                            <th class="col-qty">Qty.</th>
+                            <th class="col-avail">Available<br>Stock</th>
+                            <th class="col-bal">Balance<br>Stock</th>
+                            <th class="col-rem">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($batch_requests as $item)
+                            <tr>
+                                <td style="padding: 8px 4px;">{{ $item->supply->id }}</td>
+                                <td style="padding: 8px 4px;">{{ $item->supply->unit }}</td>
+                                <td class="col-desc" style="padding: 8px 4px;">
+                                    <strong>{{ $item->supply->name }}</strong><br>
+                                    <span
+                                        style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
+                                </td>
+                                <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}
+                                </td>
+                                <td style="padding: 8px 4px;">{{ $item->supply->quantity }}</td>
+                                <td style="padding: 8px 4px;"></td>
+                                <td style="padding: 8px 4px;"></td>
+                            </tr>
+                        @endforeach
+
+                        {{-- Generate Filler Rows to keep table height consistent --}}
+                        @php
+                            $min_rows = 3;
+                            $current_rows = count($batch_requests);
+                            $filler = $min_rows - $current_rows;
+                        @endphp
+
+                        @if ($filler > 0)
+                            @for ($i = 0; $i < $filler; $i++)
+                                <tr>
+                                    <td style="padding: 10px;"></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            @endfor
+                        @endif
+
+                        <tr style="height: 100%;">
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                            <td style="border-bottom: none;"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="purpose-section">
+                    <div class="purpose-label">PURPOSE</div>
+                    <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
+                </div>
+
+                <div class="signature-grid">
+                    @foreach (['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
+                        <div class="sig-col">
+                            <div class="sig-header">{{ $title }}</div>
+                            <div class="sig-row">
+                                <div class="sig-label">Signature</div>
+                                <div class="sig-value"></div>
+                            </div>
+
+                            <div class="sig-row">
+                                <div class="sig-label">Printed Name</div>
+                                <div class="sig-value">
+                                    @if ($title == 'Requested by:')
+                                        {{ $batch_requests->first()->requested_by }}
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="sig-row">
+                                <div class="sig-label">Designation</div>
+                                <div class="sig-value">
+                                    @if ($title == 'Approved by:')
+                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II
+                                            /<br>HOSPITAL ADMINISTRATOR</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
+
+                <div class="signature-grid" style="border-bottom: none;">
+                    @foreach (['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
+                        <div class="sig-col">
+                            <div class="sig-header">{{ $title }}</div>
+                            <div class="sig-row">
+                                <div class="sig-label">Signature</div>
+                                <div class="sig-value"></div>
+                            </div>
+                            <div class="sig-row">
+                                <div class="sig-label">Printed Name</div>
+                                <div class="sig-value"></div>
+                            </div>
+                            <div class="sig-row">
+                                <div class="sig-label">Designation</div>
+                                <div class="sig-value"></div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            @if ($copy == 0)
+                <div class="cut-line">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                    - - - - - - - - - - - - - - - - - - ✂</div>
+            @endif
+        @endfor
+    </div>
+
+    <script>
+        window.onload = () => setTimeout(window.print, 500);
+    </script>
+</body>
+
+</html>

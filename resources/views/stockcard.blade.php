@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Card - {{ $item->name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #525659; font-family: Arial, sans-serif; }
+        .print-toolbar { 
+            position: fixed; top: 0; left: 0; right: 0; height: 50px; 
+            background-color: #323639; display: flex; align-items: center; 
+            justify-content: center; gap: 15px; z-index: 1000; 
+        }
+        .btn-action { padding: 6px 14px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; text-decoration: none; border: none; }
+        .btn-print { background-color: #8ab4f8; color: #202124; }
+        .btn-back { background-color: transparent; color: #e8eaed; border: 1px solid #5f6368; }
+        
+        .paper-preview { background-color: #fff; width: 13in; min-height: 8.5in; margin: 70px auto 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); padding: 0.5in; box-sizing: border-box; }
+        
+        .form-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; font-size: 10px; font-weight: bold; }
+        .form-title { text-align: center; flex-grow: 1; font-size: 18px; letter-spacing: 2px; font-weight: bold; margin-top: 15px; }
+
+        .meta-table { width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: 0; font-size: 10px; }
+        .meta-table td { border: 1px solid #000; padding: 4px 6px; text-transform: uppercase; }
+        .meta-label { font-size: 8px; vertical-align: top; width: 1%; white-space: nowrap; }
+        .meta-value { font-weight: bold; font-size: 11px; }
+
+        .ledger-table { width: 100%; border-collapse: collapse; border: 2px solid #000; border-top: none; font-size: 9px; }
+        .ledger-table th, .ledger-table td { border: 1px solid #000; padding: 4px; text-align: center; }
+        .ledger-table th { font-weight: bold; text-transform: uppercase; font-size: 8px; }
+        .ledger-table .desc-col { text-align: left; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        @media print {
+            @page { size: 13in 8.5in; margin: 0.5in; }
+            body { background: none; padding: 0; margin: 0; }
+            .print-toolbar { display: none !important; }
+            .paper-preview { margin: 0; padding: 0; box-shadow: none; width: 100%; height: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="print-toolbar no-print">
+        <form method="GET" action="/stockcard/{{ $item->id }}" class="d-flex align-items-center mb-0 m-0">
+            <label class="text-white me-2 fw-bold" style="font-size: 12px;">VIEW MONTH:</label>
+            <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()" style="font-size: 12px; font-weight: bold; border-radius: 4px;">
+                @foreach ($available_months as $m)
+                    <option value="{{ $m['value'] }}" {{ $m['value'] == $month_filter ? 'selected' : '' }}>
+                        {{ $m['label'] }}
+                    </option>
+                @endforeach
+            </select>
+        </form>
+        
+        <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
+        
+        {{-- NEW: Excel Export Button --}}
+        <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}" class="btn-action" style="background-color: #107c41; color: white;">
+            <i class="bi bi-file-earmark-excel"></i> Excel
+        </a>
+        
+        <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print</button>
+    </div>
+
+    <div class="paper-preview">
+        
+        <div class="form-header">
+            <div>
+                GENERAL FORM NO. 18<br>
+                <span style="font-weight: normal; font-size: 9px;">Revised January 1992</span>
+            </div>
+            <div class="form-title">
+                STOCK CARD<br>
+                <span style="font-size: 10px; font-weight: normal; letter-spacing: 0;">FOR THE MONTH OF <strong>{{ $current_month_label }}</strong></span>
+            </div>
+            <div style="width: 100px;"></div> 
+        </div>
+
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">AGENCY/<br>OFFICE:</td>
+                <td colspan="5" class="meta-value">ROXAS MEMORIAL PROVINCIAL HOSPITAL</td>
+            </tr>
+            <tr>
+                <td class="meta-label">ITEM:</td>
+                <td class="meta-value" style="width: 30%;">{{ $item->name }}</td>
+                <td class="meta-label">DESCRIPTION:</td>
+                <td class="meta-value" style="width: 35%;">{{ $item->description }}</td>
+                <td class="meta-label">LOCATION:</td>
+                <td class="meta-value text-center" style="width: 15%;"></td>
+            </tr>
+            <tr>
+                <td class="meta-label">STOCK NO.</td>
+                <td class="meta-value text-center">{{ $item->id }}</td>
+                <td class="meta-label">UNIT:</td>
+                <td class="meta-value">{{ $item->unit }}</td>
+                <td class="meta-label">REORDER POINT:</td>
+                <td class="meta-value text-center">{{ $item->reorder_level }}</td>
+            </tr>
+        </table>
+
+        <table class="ledger-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 8%;">DATE</th>
+                    <th rowspan="2" style="width: 10%;">REFERENCE</th>
+                    <th rowspan="2" style="width: 22%;">FROM WHOM RECEIVED<br>OR TO WHOM ISSUED</th>
+                    <th colspan="3">RECEIVED</th>
+                    <th colspan="3">ISSUED</th>
+                    <th colspan="3">BALANCE</th>
+                </tr>
+                <tr>
+                    <th style="width: 5%;">QTY</th><th style="width: 7%;">UNIT COST</th><th style="width: 8%;">TOTAL COST</th>
+                    <th style="width: 5%;">QTY</th><th style="width: 7%;">UNIT COST</th><th style="width: 8%;">TOTAL COST</th>
+                    <th style="width: 5%;">QTY</th><th style="width: 7%;">UNIT COST</th><th style="width: 8%;">TOTAL COST</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                <tr style="background-color: #fcfcfc;">
+                    <td style="font-weight: bold; color: #555;">01</td>
+                    <td></td>
+                    <td class="desc-col text-center" style="font-weight: bold; letter-spacing: 1px;">BALANCE FORWARDED</td>
+                    <td></td><td></td><td></td>
+                    <td></td><td></td><td></td>
+                    <td style="font-weight: bold; font-size: 11px;">{{ $balance_forwarded }}</td>
+                    <td></td><td></td>
+                </tr>
+
+                @foreach ($releases->reverse() as $release)
+                <tr>
+                    <td>{{ \Carbon\Carbon::parse($release->created_at)->format('m/d/Y') }}</td>
+                    <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>
+                    <td class="desc-col">{{ $release->department_name }} ({{ $release->requested_by }})</td>
+                    
+                    <td></td><td></td><td></td>
+                    
+                    <td style="font-weight: bold;">{{ $release->quantity }}</td>
+                    <td></td><td></td>
+                    
+                    <td style="font-weight: bold; font-size: 11px;">{{ $release->running_balance }}</td>
+                    <td></td><td></td>
+                </tr>
+                @endforeach
+
+                {{-- Filler Rows to push layout to bottom of card --}}
+                @php
+                    $min_rows = 13;
+                    $current_rows = count($releases) + 1;
+                    $filler = $min_rows - $current_rows;
+                @endphp
+                
+                @if ($filler > 0)
+                    @for ($i = 0; $i < $filler; $i++)
+                    <tr>
+                        <td style="height: 18px;"></td><td></td><td></td><td></td><td></td><td></td>
+                        <td></td><td></td><td></td><td></td><td></td><td></td>
+                    </tr>
+                    @endfor
+                @endif
+            </tbody>
+        </table>
+
+    </div>
+
+</body>
+</html>
