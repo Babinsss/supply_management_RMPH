@@ -52,16 +52,6 @@ return [
             'username' => env('DB_USERNAME', 'forge'),
             'password' => env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => 'utf8mb4',
-            'collation' => 'utf8mb4_unicode_ci',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => [
-            // Ensure this is set to use the system CA bundle or null
-             PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA') ? env('MYSQL_ATTR_SSL_CA') : null,
-            ],
         ],
 
         'pgsql' => [
