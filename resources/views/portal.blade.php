@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supply Requisition | RMPH</title>
+    
+    <link rel="icon" type="image/png" href="{{ asset('images/supply-logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/supply-logo.png') }}">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -33,8 +37,8 @@
     <div class="container checkout-container">
         
         <div class="text-center mb-5">
-            <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center shadow mb-3" style="width: 60px; height: 60px;">
-                <i class="bi bi-box-seam fs-3"></i>
+            <div class="mb-3">
+                <img src="{{ asset('images/supply-logo2.png') }}" alt="RMPH Supply Logo" style="height: 150px; width: auto;">
             </div>
             <h2 class="fw-bolder tracking-tight">Supply Requisition</h2>
             <p class="text-muted fw-medium">RMPH Department Portal</p>
@@ -73,12 +77,12 @@
                                     <option value="" disabled selected>Search inventory items...</option>
                                     @foreach($supplies as $item)
                                         @if($item->quantity > 0)
-                                            <option value="{{ $item->id }}" data-name="{{ $item->name }}" data-max="{{ $item->quantity }}">
-                                                {{ $item->name }} (In Stock: {{ $item->quantity }})
+                                            <option value="{{ $item->id }}" data-name="{{ $item->name }} {{ $item->description ? '('.$item->description.')' : '' }}" data-max="{{ $item->quantity }}">
+                                                {{ $item->name }} {{ $item->description ? '- ' . $item->description : '' }} (In Stock: {{ $item->quantity }})
                                             </option>
                                         @else
                                             <option disabled class="text-danger fw-bold">
-                                                [OUT OF STOCK] {{ $item->name }}
+                                                [OUT OF STOCK] {{ $item->name }} {{ $item->description ? '- ' . $item->description : '' }}
                                             </option>
                                         @endif
                                     @endforeach
@@ -119,13 +123,22 @@
                             <div style="max-height: 350px; overflow-y: auto;" class="pe-2">
                                 <ul class="list-unstyled mb-0">
                                     @foreach($supplies as $item)
-                                        <li class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-light">
-                                            <span class="small fw-bold text-dark">{{ $item->name }}</span>
-                                            @if($item->quantity > 0)
-                                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1">Available</span>
-                                            @else
-                                                <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1">Out of Stock</span>
-                                            @endif
+                                        <li class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-light">
+                                            <div>
+                                                <div class="small fw-bold text-dark mb-1">{{ $item->name }}</div>
+                                                @if($item->description)
+                                                    <div class="text-muted text-uppercase" style="font-size: 0.70rem; letter-spacing: 0.5px;">
+                                                        {{ $item->description }}
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div>
+                                                @if($item->quantity > 0)
+                                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1">Available</span>
+                                                @else
+                                                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1">Out of Stock</span>
+                                                @endif
+                                            </div>
                                         </li>
                                     @endforeach
                                 </ul>

@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'RMPH Supply Hub' }}</title>
+    
+    <link rel="icon" type="image/png" href="{{ asset('images/supply-logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/supply-logo.png') }}">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -32,12 +36,10 @@
        {{-- Navigation Header --}}
             <nav class="d-flex justify-content-between align-items-center mb-5">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px;">
-                        <i class="bi bi-hospital-fill fs-4"></i>
-                    </div>
+                    <img src="{{ asset('images/supply-logo2.png') }}" alt="RMPH Supply Logo" style="height: 90px; width: auto;">
                     <div>
                         <h4 class="mb-0 fw-bolder tracking-tight">Supply Hub</h4>
-                        <span class="text-muted-soft small fw-bold">ICT Operations</span>
+                        <span class="text-muted-soft small fw-bold">Supply Section</span>
                     </div>
                 </div>
                 <div class="d-flex gap-3">
