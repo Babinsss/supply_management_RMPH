@@ -56,14 +56,14 @@
         
         <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
         
-        {{-- NEW: Excel Export Button --}}
+        {{-- Excel Export Button --}}
         <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}" class="btn-action" style="background-color: #107c41; color: white;">
             <i class="bi bi-file-earmark-excel"></i> Excel
         </a>
         
         <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print</button>
     </div>
-
+    
     <div class="paper-preview">
         
         <div class="form-header">
@@ -99,6 +99,15 @@
                 <td class="meta-label">REORDER POINT:</td>
                 <td class="meta-value text-center">{{ $item->reorder_level }}</td>
             </tr>
+            {{-- Added RIS, Supplier, and Unit Price Row --}}
+            <tr>
+                <td class="meta-label">RIS NUMBER:</td>
+                <td class="meta-value text-center">{{ $item->ris_number }}</td>
+                <td class="meta-label">SUPPLIER:</td>
+                <td class="meta-value">{{ $item->supplier }}</td>
+                <td class="meta-label">UNIT PRICE:</td>
+                <td class="meta-value text-center">{{ $item->unit_price ? '₱ ' . number_format($item->unit_price, 2) : '' }}</td>
+            </tr>
         </table>
 
         <table class="ledger-table">
@@ -123,10 +132,17 @@
                     <td style="font-weight: bold; color: #555;">01</td>
                     <td></td>
                     <td class="desc-col text-center" style="font-weight: bold; letter-spacing: 1px;">BALANCE FORWARDED</td>
+                    
+                    {{-- Received --}}
                     <td></td><td></td><td></td>
+                    
+                    {{-- Issued --}}
                     <td></td><td></td><td></td>
+                    
+                    {{-- Balance (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold; font-size: 11px;">{{ $balance_forwarded }}</td>
-                    <td></td><td></td>
+                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $balance_forwarded, 2) : '' }}</td>
                 </tr>
 
                 @foreach ($releases->reverse() as $release)
@@ -135,13 +151,18 @@
                     <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>
                     <td class="desc-col">{{ $release->department_name }} ({{ $release->requested_by }})</td>
                     
+                    {{-- Received --}}
                     <td></td><td></td><td></td>
                     
+                    {{-- Issued (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold;">{{ $release->quantity }}</td>
-                    <td></td><td></td>
+                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $release->quantity, 2) : '' }}</td>
                     
+                    {{-- Balance (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold; font-size: 11px;">{{ $release->running_balance }}</td>
-                    <td></td><td></td>
+                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $release->running_balance, 2) : '' }}</td>
                 </tr>
                 @endforeach
 

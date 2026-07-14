@@ -24,14 +24,27 @@
     </div>
 
     <div class="bento-card mb-5">
-        <h5 class="fw-bolder mb-4"><i class="bi bi-inbox-fill text-warning me-2"></i> Action Required: Department Requisitions</h5>
+        <h5 class="fw-bolder mb-4"><i class="bi bi-inbox-fill text-warning me-2"></i> Department Requisitions Monitor</h5>
         
         <div class="table-responsive">
             <table class="table table-clean mb-0">
-                <thead><tr><th>Requestor</th><th>Items</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Date & Time (PH)</th>
+                        <th>Requestor</th>
+                        <th>Items</th>
+                        <th>Status</th>
+                        <th class="text-end">Status</th>
+                    </tr>
+                </thead>
                 <tbody>
                     @forelse($requests as $batch)
                     <tr>
+                        <td>
+                            @php $batchDate = $batch['created_at'] ?? $batch['items']->first()->created_at; @endphp
+                            <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
+                            <div class="text-muted-soft small">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('h:i A') }}</div>
+                        </td>
                         <td>
                             <div class="fw-bold text-dark">{{ $batch['department_name'] }}</div>
                             <div class="text-muted-soft small">{{ $batch['requested_by'] }}</div>
@@ -50,93 +63,33 @@
                         </td>
                         <td class="text-end">
                             @if($batch['status'] == 'Pending')
-                                {{-- CLEAN TRIGER: Keeps table rows lightweight and collision-free --}}
-                                <button type="button" class="btn btn-sm btn-modern btn-success" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}">
-                                    Approve
-                                </button>
-                                <a href="/process-batch/{{ $batch['batch_id'] }}/deny" class="btn btn-sm btn-modern btn-light text-danger"><i class="bi bi-x-lg"></i></a>
+                                <span class="btn btn-sm btn-modern btn-light text-warning fw-bold border shadow-sm" style="pointer-events: none;">
+                                    <i class="bi bi-hourglass-split me-1"></i> For Approval
+                                </span>
                             @else
-                                <button type="button" class="btn btn-sm btn-modern btn-light text-muted" onclick="printDirectly('/print-bulk/{{ $batch['batch_id'] }}')">
-                                    <i class="bi bi-printer-fill"></i> RIS
-                                </button>
+                                <span class="btn btn-sm btn-modern btn-light text-success fw-bold border shadow-sm" style="pointer-events: none;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Approved
+                                </span>
                             @endif
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="4" class="text-center py-5 text-muted-soft fw-medium">All caught up! No pending requests.</td></tr>
+                    <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No requests found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
 
-    {{-- OUTSIDE ARCHITECTURE: Modals are isolated here at the layout base layer to ensure maximum performance --}}
-    @foreach($requests as $batch)
-        @if($batch['status'] == 'Pending')
-            <div class="modal fade text-start" id="approveModal-{{ $batch['batch_id'] }}" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content bento-card p-2 border-0">
-                        <form action="/process-batch/{{ $batch['batch_id'] }}/approve" method="POST">
-                            @csrf
-                            <div class="modal-header border-0 pb-0">
-                                <h5 class="fw-bolder text-dark">Review & Dispense</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p class="text-muted-soft small mb-4">Adjust the quantities below to limit the dispensed amount. You cannot exceed the requested amount or your current active stock.</p>
-                                
-                                @foreach($batch['items'] as $req)
-                                <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-4 border border-white border-2 shadow-sm">
-                                    <div class="pe-2">
-                                        <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
-                                        <div class="text-muted-soft small">Requested: <span class="fw-bold text-dark">{{ $req->quantity }}</span> | Stock: {{ $req->supply->quantity }}</div>
-                                    </div>
-                                    <div style="width: 90px; flex-shrink: 0;">
-                                        <label class="text-muted-soft small fw-bold text-uppercase" style="font-size: 0.65rem;">Release</label>
-                                        <input type="number" class="input-modern text-center (any) py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
-                                               value="{{ $req->quantity <= $req->supply->quantity ? $req->quantity : $req->supply->quantity }}" 
-                                               min="0" 
-                                               max="{{ $req->quantity <= $req->supply->quantity ? $req->quantity : $req->supply->quantity }}" 
-                                               required>
-                                    </div>
-                                </div>
-                                @endforeach
-                            </div>
-                            <div class="modal-header border-0 pt-0 justify-content-end gap-2">
-                                <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-success btn-modern shadow-sm"><i class="bi bi-check2-circle me-2"></i> Confirm Release</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @endif
-    @endforeach
-
     <x-slot name="scripts">
         <script>
-            // Seamless Hidden Iframe Print Function
-            function printDirectly(url) {
-                let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
-                if(!printFrame.id) {
-                    printFrame.id = 'hiddenPrintFrame';
-                    printFrame.style.cssText = 'width:0; height:0; border:none; position:absolute;';
-                    document.body.appendChild(printFrame);
-                }
-                printFrame.src = url;
-                printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
-            }
-
-            // Upgraded Background Poller
-            let count = parseInt("{{ $pending_count }}") || 0;
+            // Auto-refresh ICT Dashboard
+            let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
                 fetch('/api/pending-count')
                     .then(r => r.json())
                     .then(data => {
-                        // FIX: Only refresh the dashboard if there isn't an open modal active on screen
-                        if (data.count > count && !document.querySelector('.modal.show')) {
-                            location.reload(); 
-                        }
+                        if (data.count !== currentCount) { location.reload(); }
                     });
             }, 5000);
         </script>

@@ -12,7 +12,7 @@ class Supply extends Model
     protected $table = 'supplies';
 
     protected $fillable = [
-        'name', 'category', 'description', 'quantity', 'unit', 'reorder_level', 'supplier', 'date_delivered'
+        'name', 'category', 'description', 'quantity', 'unit', 'reorder_level', 'supplier', 'date_delivered', 'ris_number', 'expiry_date', 'unit_price'
     ];
 
     // One supply has many department requests

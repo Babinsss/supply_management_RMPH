@@ -44,9 +44,19 @@
             <p class="text-muted fw-medium">RMPH Department Portal</p>
         </div>
 
+        {{-- SUCCESS MESSAGE & PRINT BUTTON --}}
         @if(session('success'))
-            <div class="alert alert-success border-0 rounded-4 p-4 mb-4 text-center fw-bold shadow-sm text-success">
-                <i class="bi bi-check2-circle fs-4 d-block mb-2"></i> {{ session('success') }}
+            <div class="alert alert-success border-0 rounded-4 p-4 mb-4 text-center shadow-sm">
+                <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i> 
+                <h5 class="fw-bold text-success mb-3">{{ session('success') }}</h5>
+                
+                {{-- Only show print button if batch_id is flashed to session --}}
+                @if(session('batch_id'))
+                    <button type="button" class="btn btn-primary btn-modern shadow-sm px-4" onclick="printDirectly('/print-bulk/{{ session('batch_id') }}')">
+                        <i class="bi bi-printer-fill me-2"></i> Print Requisition Slip (RIS)
+                    </button>
+                    <p class="small text-muted mt-2 mb-0">Please print this slip, sign it, and present it to the Supply Section.</p>
+                @endif
             </div>
         @endif
 
@@ -59,13 +69,65 @@
                 <div class="col-lg-7">
                     <div class="bento-card h-100">
                         <div class="row g-4 mb-5">
+                            
+                            {{-- Department Dropdown --}}
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase tracking-wide">Department</label>
-                                <input type="text" class="input-modern" name="department_name" placeholder="e.g. ER, Ward 2" required>
+                                <select class="input-modern" name="department_name" id="departmentSelect" required onchange="updateRequestor()">
+                                    <option value="" disabled selected>Select Department...</option>
+                                    
+                                    {{-- Administrative Departments --}}
+                                    <optgroup label="Administrative Department">
+                                        <option value="Admitting" data-head="JULIO MEDINA">Admitting</option>
+                                        <option value="Accounting" data-head="JAHZEILE SALISTRE">Accounting</option>
+                                        <option value="Building & Maintenance" data-head="MARY JANE BALDISMO">Building & Maintenance</option>
+                                        <option value="Credit & Collection" data-head="MEMIA BUGTONG">Credit & Collection</option>
+                                        <option value="HR" data-head="FRANCES THERESE MIRANDA">Human Resources</option>
+                                        <option value="ICT" data-head="AIZA OBLIGAR">ICT</option>
+                                        <option value="Medical Records" data-head="SHERYL ABLAO">Medical Records</option>
+                                        <option value="Cashier" data-head="ROSELA FERNANDO">Cashier</option>
+                                        <option value="Billing & Claims" data-head="REGNER BRILLO">Billing & Claims</option>
+                                        <option value="Malasakit" data-head="LIZAMAE BERANO">Malasakit Center</option>
+                                        <option value="Dietary" data-head="ROBENIA DAYALO">Dietary</option>
+                                        <option value="Consignment" data-head="ALIANA MARIE DULA/KRISTINE MAE BATAN">Consignment Section</option>
+                                        <option value="Quality Management Office" data-head="JHOANNA CRUZ-AM">Quality Management Office</option>
+                                        <option value="Chief of Hospital II" data-head="DR. FLORENCIO LUCHING">Chief of Hospital II</option>
+                                        <option value="Chief of Clinics" data-head="DR. VINCENT JURY LAURON">Chief of Clinics</option>
+                                    </optgroup>
+
+                                    {{-- Wards & Ancillary Units --}}
+                                    <optgroup label="Wards / Ancillary Units">
+                                        <option value="CSR" data-head="MIA BUENVENIDA">Central Supply Room</option>
+                                        <option value="LAB" data-head="MARIJOE ARTATES">Laboratory</option>
+                                        <option value="RADIO" data-head="SOCRATES BERCADEZ">Radiology</option>
+                                        <option value="PHARMA" data-head="SHARA SANTOS">Pharmacy</option>
+                                        <option value="CARDIO PULMONARY" data-head="SONIA FLORENCIO">Cardio Pulmonary</option>
+                                        <option value="WCPU" data-head="ANNIELEE ARIEL">WCPU</option>
+                                        <option value="IW" data-head="ANABELLE DENAGA">Institutional Workers</option>
+                                        <option value="Laundry" data-head="LENNIE TOCONG">Laundry</option>
+                                        <option value="REHAB" data-head="ANABELLE GARCIA">Rehab</option>
+                                        <option value="NSO" data-head="GLENA PIMENTEL">NSO Office</option>
+                                        <option value="ORTHO" data-head="SUSIE ARMIZA">Orthopedic Ward</option>
+                                        <option value="OB" data-head="WENDY MARTINEZ">OB Ward</option>
+                                        <option value="ER" data-head="CHRISTINE ESQUILLO">Emergency Room</option>
+                                        <option value="FMW" data-head="CHRISTINE ESQUILLO">Female Medical Ward</option>
+                                        <option value="MMW" data-head="CHRISTINE ESQUILLO">Male Medical Ward</option>
+                                        <option value="ICU" data-head="CHRISTINE ESQUILLO">Intensive Care Unit</option>
+                                        <option value="NICU" data-head="CHRISTINE ESQUILLO">Neonatal Intensive Care Unit</option>
+                                        <option value="SURGICAL" data-head="CHRISTINE ESQUILLO">Surgical Ward</option>
+                                        <option value="PEDIA" data-head="CHRISTINE ESQUILLO">Pediatric Ward</option>
+                                        <option value="OR" data-head="CHRISTINE ESQUILLO">Operating Room</option>
+                                        <option value="PAYWARD" data-head="CHRISTINE ESQUILLO">Pay Ward</option>
+                                        <option value="HEMO" data-head="EVANGELINE DETANOY">Hemodialysis</option>
+                                        <option value="GUGMA DIALYSIS" data-head="STEPHEN ESPENOCILLA">Gugma Dialysis</option>
+                                    </optgroup>
+                                </select>
                             </div>
+
+                            {{-- Auto-filling Requestor Input --}}
                             <div class="col-md-6">
-                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wide">Requestor Name</label>
-                                <input type="text" class="input-modern" name="requested_by" placeholder="Full Name" required>
+                                <label class="form-label text-muted small fw-bold text-uppercase tracking-wide">Requestor Name (Head)</label>
+                                <input type="text" class="input-modern bg-light text-muted" name="requested_by" id="requestedByInput" placeholder="Auto-filled Head Name" required readonly>
                             </div>
                         </div>
 
@@ -91,7 +153,6 @@
                                 <button type="button" class="btn btn-dark btn-modern" onclick="addItem()">Add</button>
                             </div>
 
-                            {{-- Properly Separated Cart Containers --}}
                             <div id="emptyCart" class="text-center py-4 text-muted small fw-medium">Cart is empty. Select items above.</div>
                             <div id="cartList"></div>
                         </div>
@@ -107,7 +168,6 @@
                 <div class="col-lg-5">
                     <div class="sticky-layout d-flex flex-column gap-4">
                         
-                        {{-- Cart Submit Box --}}
                         <div class="bento-card">
                             <h5 class="fw-bolder border-bottom pb-3 mb-4 d-flex justify-content-between align-items-center">
                                 Request Summary
@@ -117,7 +177,6 @@
                             <button type="submit" class="btn btn-primary btn-modern w-100 fs-5"><i class="bi bi-send-fill me-2"></i> Submit Request</button>
                         </div>
 
-                        {{-- Live Directory List --}}
                         <div class="bento-card flex-grow-1">
                             <h6 class="fw-bolder border-bottom pb-3 mb-3 text-uppercase tracking-wide small text-muted">Live Inventory Directory</h6>
                             <div style="max-height: 350px; overflow-y: auto;" class="pe-2">
@@ -154,6 +213,25 @@
     </div>
 
     <script>
+        // Auto-fill Requestor Function
+        function updateRequestor() {
+            let select = document.getElementById('departmentSelect');
+            let headName = select.options[select.selectedIndex].getAttribute('data-head');
+            document.getElementById('requestedByInput').value = headName || '';
+        }
+
+        // Print Iframe logic for the success screen
+        function printDirectly(url) {
+            let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
+            if(!printFrame.id) {
+                printFrame.id = 'hiddenPrintFrame';
+                printFrame.style.cssText = 'width:0; height:0; border:none; position:absolute;';
+                document.body.appendChild(printFrame);
+            }
+            printFrame.src = url;
+            printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
+        }
+
         let cart = [];
         
         function addItem() {

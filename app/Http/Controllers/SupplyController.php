@@ -57,6 +57,9 @@ class SupplyController extends Controller
             'quantity' => 'required|integer',
             'unit' => 'required|string|max:50',
             'reorder_level' => 'required|integer',
+            'ris_number' => 'nullable|string|max:100',
+            'expiry_date' => 'nullable|date',
+            'unit_price' => 'nullable|numeric|min:0',
         ]);
 
         Supply::create($request->all());
@@ -76,6 +79,27 @@ class SupplyController extends Controller
         $item->save();
 
         return redirect()->route('dashboard')->with('success', "Stock updated successfully for {$item->name}!");
+    }
+    public function update(Request $request, $id)
+    {
+        // 1. Validate all the fields coming from the Edit Modal
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'quantity' => 'required|integer|min:0', // This replaces the old quantity completely
+            'ris_number' => 'nullable|string|max:255',
+            'expiry_date' => 'nullable|date',
+            'supplier' => 'nullable|string|max:255',
+            'date_delivered' => 'nullable|date',
+            'unit_price' => 'nullable|numeric|min:0',
+        ]);
+
+        // 2. Find the item and overwrite the data
+        $item = Supply::findOrFail($id);
+        $item->update($validated);
+
+        // 3. Redirect back to the inventory page with a success message
+        return redirect()->back()->with('success', "Item details updated successfully for {$item->name}!");
     }
 
     public function deleteItem($id)
@@ -177,7 +201,10 @@ class SupplyController extends Controller
             ]);
         }
 
-        return redirect()->route('portal')->with('success', 'Your bulk request has been successfully submitted to ICT.');
+        // We added the batch_id here so the portal knows which button to show!
+        return redirect()->route('portal')
+            ->with('success', 'Your bulk request has been successfully submitted to ICT.')
+            ->with('batch_id', $batchId);
     }
 
     public function stockcard(Request $request, $item_id)
@@ -243,10 +270,24 @@ class SupplyController extends Controller
     public function printBulk($batch_id)
     {
         $batchRequests = DepartmentRequest::where('batch_id', $batch_id)->get();
+        
         if ($batchRequests->isEmpty()) {
             abort(404, 'Batch not found');
         }
-        return view('print_template', ['batch_requests' => $batchRequests]);
+
+        // Generate formatted control number: RIS-YYYY-MM-###
+        // We count batches created in the same month to get the sequence
+        $sequence = DepartmentRequest::where('batch_id', '!=', $batch_id)
+                        ->whereMonth('created_at', now()->month)
+                        ->distinct('batch_id')
+                        ->count() + 1;
+        
+        $controlNumber = 'RIS-' . now()->format('Y-m') . '-' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+
+        return view('print_template', [
+            'batch_requests' => $batchRequests,
+            'control_number' => $controlNumber
+        ]);
     }
 
     public function pendingCountApi()
@@ -257,10 +298,13 @@ class SupplyController extends Controller
 
         return response()->json(['count' => $pendingCount]);
     }
-    public function inventory()
+    public function inventory() 
     {
-        $supplies = Supply::orderBy('name', 'asc')->get();
-        return view('inventory', ['items' => $supplies]);
+        // Fetch all supplies from the database, ordered alphabetically by name
+        $supplies = \App\Models\Supply::orderBy('name', 'asc')->get();
+
+        // Pass the $supplies variable to the inventory view
+        return view('inventory', compact('supplies'));
     }
 
     public function exportExcel(Request $request, $id)
@@ -345,5 +389,47 @@ class SupplyController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
-    } 
+    }
+        /**
+     * QMO Approver Dashboard
+     * Fetches grouped requests exactly like the main dashboard.
+     */
+    public function approverDashboard()
+        {
+            // Fetch all requests and group them by batch_id
+            $allRequests = \App\Models\DepartmentRequest::with('supply')->orderBy('created_at', 'desc')->get();
+            
+            $requests = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
+                return [
+                    'batch_id' => $batchId,
+                    'created_at' => $items->first()->created_at,
+                    'department_name' => $items->first()->department_name,
+                    'requested_by' => $items->first()->requested_by,
+                    'status' => $items->first()->status,
+                    'items' => $items
+                ];
+            })->values();
+
+            // Calculate pending batches for the stat counter
+            $pending_count = $requests->where('status', 'Pending')->count();
+
+            // Send data to the new Approver Dashboard view
+            return view('approver.dashboard', [
+                'requests' => $requests,
+                'pending_count' => $pending_count
+            ]);
+        }
+
+    /**
+     * QMO Approver Inventory
+     * Fetches the inventory list for read-only viewing.
+     */
+    public function approverInventory()
+        {
+            // Fetch all supplies, ordered alphabetically
+            $supplies = \App\Models\Supply::orderBy('name', 'asc')->get();
+            
+            // Send data to the new Approver Inventory view
+            return view('approver.inventory', compact('supplies'));
+        }
 }

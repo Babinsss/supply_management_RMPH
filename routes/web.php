@@ -28,3 +28,8 @@ Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
 Route::get('/inventory', [SupplyController::class, 'inventory']);
 Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
 Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
+Route::put('/inventory/update/{id}', [App\Http\Controllers\SupplyController::class, 'update']);
+
+// Approver Routes
+Route::get('/approver/dashboard', [SupplyController::class, 'approverDashboard']);
+Route::get('/approver/inventory', [SupplyController::class, 'approverInventory']);

@@ -186,33 +186,27 @@
             font-size: 9px;
         }
 
-        .col-code {
-            width: 8%;
-        }
+        /* NEW TABLE COLUMNS */
+        .col-desc { width: 45%; text-align: left; }
+        .col-unit { width: 10%; }
+        .col-qty-req { width: 15%; }
+        .col-stock-avail { width: 15%; }
+        .col-qty-issued { width: 15%; }
 
-        .col-unit {
-            width: 6%;
-        }
-
-        .col-desc {
-            width: 38%;
+        /* CHECKBOX STYLING FOR PRINT */
+        .checkbox-container {
             text-align: left;
+            padding-left: 8px;
+            font-size: 9px;
+            line-height: 1.5;
         }
-
-        .col-qty {
-            width: 8%;
-        }
-
-        .col-avail {
-            width: 12%;
-        }
-
-        .col-bal {
-            width: 12%;
-        }
-
-        .col-rem {
-            width: 16%;
+        .checkbox-box {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border: 1px solid #000;
+            margin-right: 4px;
+            vertical-align: middle;
         }
 
         .purpose-section {
@@ -359,14 +353,13 @@
                     <div class="header-col-2">
                         <div class="header-title-box">
                             <span class="doc-title-label">Document Title:</span>
-                            <strong style="font-size: 13px; margin-top: 6px;">REQUISITION AND ISSUE SLIP (RIS)
-                                FORM</strong>
+                            <strong style="font-size: 13px; margin-top: 6px;">REQUISITION AND ISSUE SLIP (RIS) FORM</strong>
                         </div>
                         <div class="header-docno-box">Document No: RMH-PPS-F01</div>
                     </div>
                     <div class="header-col-3">
                         <span style="font-size: 7px;">Rev No</span>
-                        <strong style="font-size: 13px;">00</strong>
+                        <strong style="font-size: 13px;">01</strong>
                     </div>
                     <div class="header-col-4">
                         <img src="{{ asset('images/rmph.jpg') }}" class="rmph-logo" alt="RMPH">
@@ -376,40 +369,36 @@
                 </div>
 
                 <div class="info-section">
-                    <div>Department/Section/Unit: <span
-                            style="text-decoration: underline; text-transform: uppercase;">{{ $batch_requests->first()->department_name }}</span>
-                    </div>
-                    <div>Date: <span
-                            style="text-decoration: underline;">{{ \Carbon\Carbon::parse($batch_requests->first()->created_at)->format('F d, Y') }}</span>
-                    </div>
+                    <div>Department/Section: <span style="text-decoration: underline; text-transform: uppercase;">{{ $batch_requests->first()->department_name }}</span></div>
+                    <div>Date: <span style="text-decoration: underline;">{{ \Carbon\Carbon::parse($batch_requests->first()->created_at)->format('F d, Y') }}</span></div>
+                    <div>Control Number: <strong>{{ $control_number }}</strong></div>
                 </div>
 
                 <table>
                     <thead>
                         <tr>
-                            <th class="col-code">Stock Code</th>
-                            <th class="col-unit">Unit</th>
                             <th class="col-desc">Description</th>
-                            <th class="col-qty">Qty.</th>
-                            <th class="col-avail">Available<br>Stock</th>
-                            <th class="col-bal">Balance<br>Stock</th>
-                            <th class="col-rem">Remarks</th>
+                            <th class="col-unit">Unit</th>
+                            <th class="col-qty-req">Qty<br>Requested</th>
+                            <th class="col-stock-avail">Stock<br>Availability</th>
+                            <th class="col-qty-issued">Qty<br>Issued</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($batch_requests as $item)
                             <tr>
-                                <td style="padding: 8px 4px;">{{ $item->supply->id }}</td>
-                                <td style="padding: 8px 4px;">{{ $item->supply->unit }}</td>
-                                <td class="col-desc" style="padding: 8px 4px;">
+                                <td class="col-desc" style="padding: 8px 6px;">
                                     <strong>{{ $item->supply->name }}</strong><br>
-                                    <span
-                                        style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
+                                    <span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
                                 </td>
-                                <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}
+                                <td style="padding: 8px 4px;">{{ $item->supply->unit ?? '' }}</td>
+                                <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}</td>
+                                <td style="padding: 4px;">
+                                    <div class="checkbox-container">
+                                        <div><span class="checkbox-box"></span> Available</div>
+                                        <div><span class="checkbox-box"></span> Not available</div>
+                                    </div>
                                 </td>
-                                <td style="padding: 8px 4px;">{{ $item->supply->quantity }}</td>
-                                <td style="padding: 8px 4px;"></td>
                                 <td style="padding: 8px 4px;"></td>
                             </tr>
                         @endforeach
@@ -427,9 +416,12 @@
                                     <td style="padding: 10px;"></td>
                                     <td></td>
                                     <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
+                                    <td style="padding: 4px;">
+                                        <div class="checkbox-container">
+                                            <div><span class="checkbox-box"></span> Available</div>
+                                            <div><span class="checkbox-box"></span> Not available</div>
+                                        </div>
+                                    </td>
                                     <td></td>
                                 </tr>
                             @endfor
@@ -441,14 +433,12 @@
                             <td style="border-bottom: none;"></td>
                             <td style="border-bottom: none;"></td>
                             <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
                         </tr>
                     </tbody>
                 </table>
 
                 <div class="purpose-section">
-                    <div class="purpose-label">PURPOSE</div>
+                    <div class="purpose-label">Purpose:</div>
                     <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
                 </div>
 
@@ -466,6 +456,8 @@
                                 <div class="sig-value">
                                     @if ($title == 'Requested by:')
                                         {{ $batch_requests->first()->requested_by }}
+                                    @elseif ($title == 'Approved by:')
+                                        JHOANNA Q. CRUZ-AM
                                     @endif
                                 </div>
                             </div>
@@ -474,8 +466,7 @@
                                 <div class="sig-label">Designation</div>
                                 <div class="sig-value">
                                     @if ($title == 'Approved by:')
-                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II
-                                            /<br>HOSPITAL ADMINISTRATOR</span>
+                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>HOSPITAL ADMINISTRATOR</span>
                                     @endif
                                 </div>
                             </div>
