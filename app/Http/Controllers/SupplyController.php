@@ -120,11 +120,11 @@ class SupplyController extends Controller
         $batchReqs = DepartmentRequest::where('batch_id', $batch_id)->get();
 
         if ($batchReqs->isEmpty()) {
-            return redirect()->route('dashboard')->with('danger', 'Request not found.');
+            return redirect()->back()->with('danger', 'Request not found.');
         }
 
         if ($batchReqs->first()->status !== 'Pending') {
-            return redirect()->route('dashboard')->with('warning', 'This request has already been processed.');
+            return redirect()->back()->with('warning', 'This request has already been processed.');
         }
 
         // Apply updated quantities from modal forms if submitted
@@ -138,7 +138,7 @@ class SupplyController extends Controller
         // Validate stock allocation counts
         foreach ($batchReqs as $req) {
             if ($req->supply->quantity < $req->quantity) {
-                return redirect()->route('dashboard')->with('danger', "Cannot approve! Not enough stock for {$req->supply->name}. You tried to release {$req->quantity} but only have {$req->supply->quantity}.");
+                return redirect()->back()->with('danger', "Cannot approve! Not enough stock for {$req->supply->name}. You tried to release {$req->quantity} but only have {$req->supply->quantity}.");
             }
         }
 
@@ -151,7 +151,8 @@ class SupplyController extends Controller
             $req->save();
         }
 
-        return redirect()->route('dashboard')->with('success', 'Bulk request approved and stock updated!');
+        // Changed from route('dashboard') to back()
+        return redirect()->back()->with('success', 'Bulk request approved and stock updated!');
     }
 
     public function denyBatch($batch_id)
@@ -163,7 +164,8 @@ class SupplyController extends Controller
             $req->save();
         }
 
-        return redirect()->route('dashboard')->with('success', 'Bulk request denied. Stock remains unchanged.');
+        // Changed from route('dashboard') to back()
+        return redirect()->back()->with('success', 'Bulk request denied. Stock remains unchanged.');
     }
 
     public function departmentPortal()

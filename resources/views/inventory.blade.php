@@ -106,7 +106,7 @@
     <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bento-card p-2 border-0">
-                <form action="/inventory" method="POST">
+                <form action="/add" method="POST">
                     @csrf
                     
                     <div class="modal-header border-0 pb-0">
@@ -150,10 +150,20 @@
                                 <input type="date" class="input-modern" name="expiry_date">
                             </div>
 
-                            <div class="col-12">
+                            {{-- Replaced col-12 with an 8/4 split for RIS and Category --}}
+                            <div class="col-md-8">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                 <input type="text" class="input-modern" name="ris_number" placeholder="e.g. RIS-2026-07-001">
                             </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                <input type="text" class="input-modern" name="category" placeholder="e.g. IT Equipment">
+                            </div>
+                            
+                            {{-- Added Hidden Inputs Required by Controller --}}
+                            <input type="hidden" name="unit" value="pcs">
+                            <input type="hidden" name="reorder_level" value="10">
                         </div>
                     </div>
                     
@@ -216,9 +226,15 @@
                                     <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
                                 </div>
 
-                                <div class="col-12">
+                                {{-- Replaced col-12 with an 8/4 split for RIS and Category --}}
+                                <div class="col-md-8">
                                     <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                     <input type="text" class="input-modern" name="ris_number" value="{{ $item->ris_number }}">
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                    <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. Office Supplies">
                                 </div>
                             </div>
                         </div>
