@@ -65,11 +65,11 @@
                                 </span>
                             @elseif($batch['status'] == 'Approved')
                                 <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">
-                                    <i class="bi bi-check-circle-fill me-1"></i> Approved
+                                    <i class="bi bi-check-circle-fill me-1"></i> Issued
                                 </span>
                             @elseif($batch['status'] == 'Denied')
                                 <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-2">
-                                    <i class="bi bi-x-circle-fill me-1"></i> Disapproved
+                                    <i class="bi bi-x-circle-fill me-1"></i> Cancelled
                                 </span>
                             @endif
                         </td>
