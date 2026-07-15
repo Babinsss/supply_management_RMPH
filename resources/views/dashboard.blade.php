@@ -24,7 +24,16 @@
     </div>
 
     <div class="bento-card mb-5">
-        <h5 class="fw-bolder mb-4"><i class="bi bi-inbox-fill text-warning me-2"></i> Department Requisitions Monitor</h5>
+        {{-- NEW: Replaced single h5 with Flexbox container for Header + Search Bar --}}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bolder mb-0"><i class="bi bi-inbox-fill text-warning me-2"></i> Department Requisitions Monitor</h5>
+            
+            {{-- Search Bar --}}
+            <div class="input-group" style="max-width: 350px;">
+                <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="requestSearchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search department, item, or status..." onkeyup="filterRequests()">
+            </div>
+        </div>
         
         <div class="table-responsive">
             <table class="table table-clean mb-0">
@@ -33,13 +42,14 @@
                         <th>Date & Time (PH)</th>
                         <th>Requestor</th>
                         <th>Items</th>
-                        <th>Status</th>
+                        {{-- DELETED the duplicate generic Status th here --}}
                         <th class="text-end">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($requests as $batch)
-                    <tr>
+                    {{-- NEW: Added request-row class for the JavaScript to target --}}
+                    <tr class="request-row">
                         <td>
                             @php $batchDate = $batch['created_at'] ?? $batch['items']->first()->created_at; @endphp
                             <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
@@ -54,27 +64,27 @@
                                 <div class="small fw-medium"><span class="text-primary">{{ $req->quantity }}x</span> {{ $req->supply->name }}</div>
                             @endforeach
                         </td>
-                        <td>
-                            @if($batch['status'] == 'Pending')
-                                <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2">Pending</span>
-                            @else
-                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">Processed</span>
-                            @endif
-                        </td>
+                        
+                        {{-- DELETED the duplicate generic Pending/Processed td block here --}}
+                        
                         <td class="text-end">
                             @if($batch['status'] == 'Pending')
-                                <span class="btn btn-sm btn-modern btn-light text-warning fw-bold border shadow-sm" style="pointer-events: none;">
-                                    <i class="bi bi-hourglass-split me-1"></i> For Approval
+                                <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2">
+                                    <i class="bi bi-hourglass-split me-1"></i> Pending
                                 </span>
-                            @else
-                                <span class="btn btn-sm btn-modern btn-light text-success fw-bold border shadow-sm" style="pointer-events: none;">
-                                    <i class="bi bi-check-circle-fill me-1"></i> Approved
+                            @elseif($batch['status'] == 'Approved')
+                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">
+                                    <i class="bi bi-check-circle me-1"></i> Approved
+                                </span>
+                            @elseif($batch['status'] == 'Denied')
+                                <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-2">
+                                    <i class="bi bi-x-circle me-1"></i> Disapproved
                                 </span>
                             @endif
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No requests found.</td></tr>
+                    <tr><td colspan="4" class="text-center py-5 text-muted-soft fw-medium">No requests found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -92,6 +102,21 @@
                         if (data.count !== currentCount) { location.reload(); }
                     });
             }, 5000);
+
+            // NEW: Real-time Search Filter for Requests
+            function filterRequests() {
+                let input = document.getElementById('requestSearchInput').value.toLowerCase();
+                let rows = document.querySelectorAll('.request-row');
+                
+                rows.forEach(row => {
+                    let textContent = row.innerText.toLowerCase();
+                    if (textContent.includes(input)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
         </script>
     </x-slot>
 </x-layouts.admin>

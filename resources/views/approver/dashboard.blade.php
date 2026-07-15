@@ -47,19 +47,45 @@
                         </td>
                         <td>
                             @foreach($batch['items'] as $req)
-                                <div class="small fw-medium"><span class="text-primary">{{ $req->quantity }}x</span> {{ $req->supply->name }}</div>
+                                <div class="mb-2">
+                                    <div class="small fw-medium">
+                                        <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                    </div>
+                                    @if($req->supply->category)
+                                        <div class="text-muted-soft text-uppercase" style="font-size: 0.65rem; margin-left: 1.4rem; letter-spacing: 0.5px;">
+                                            <i class="bi bi-tag"></i> {{ $req->supply->category }}
+                                        </div>
+                                    @endif
+                                </div>
                             @endforeach
                         </td>
                         <td>
+                            {{-- SPECIFIC STATUS BADGES --}}
                             @if($batch['status'] == 'Pending')
-                                <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2">Pending</span>
-                            @else
-                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">Processed</span>
+                                <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2">
+                                    <i class="bi bi-hourglass-split me-1"></i> Pending
+                                </span>
+                            @elseif($batch['status'] == 'Approved')
+                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Approved
+                                </span>
+                            @elseif($batch['status'] == 'Denied')
+                                <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-2">
+                                    <i class="bi bi-x-circle-fill me-1"></i> Disapproved
+                                </span>
                             @endif
                         </td>
                         <td class="text-end">
+                            {{-- BUTTONS REMAIN UNCHANGED --}}
                             @if($batch['status'] == 'Pending')
-                                <button type="button" class="btn btn-sm btn-modern btn-success" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}">Review</button>
+                                <div class="d-flex justify-content-end gap-2">
+                                    <a href="/process-batch/{{ $batch['batch_id'] }}/deny" class="btn btn-sm btn-modern btn-outline-danger" onclick="return confirm('Are you sure you want to disapprove this entire request?')">
+                                        <i class="bi bi-x-circle me-1"></i> Disapprove
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-modern btn-success" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}">
+                                        <i class="bi bi-search me-1"></i> Review
+                                    </button>
+                                </div>
                             @endif
                         </td>
                     </tr>
@@ -89,12 +115,18 @@
                                 <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-4 border border-white border-2 shadow-sm">
                                     <div class="pe-2">
                                         <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
+                                        @if($req->supply->category)
+                                            <div class="text-muted-soft text-uppercase mt-1 mb-1" style="font-size: 0.70rem; letter-spacing: 0.5px;">
+                                                {{ $req->supply->category }}
+                                            </div>
+                                        @endif
                                         <div class="text-muted-soft small mt-1">Requested: {{ $req->quantity }} | Stock: {{ $req->supply->quantity }}</div>
                                     </div>
                                     <div style="width: 90px; flex-shrink: 0;">
+                                        {{-- CAPPED AT REQUEST QUANTITY OR STOCK --}}
                                         <input type="number" class="input-modern text-center py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
-                                               value="{{ $req->quantity <= $req->supply->quantity ? $req->quantity : $req->supply->quantity }}" 
-                                               min="0" max="{{ $req->supply->quantity }}" required>
+                                               value="{{ min($req->quantity, $req->supply->quantity) }}" 
+                                               min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" required>
                                     </div>
                                 </div>
                                 @endforeach

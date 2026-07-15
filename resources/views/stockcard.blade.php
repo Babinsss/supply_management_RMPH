@@ -108,6 +108,19 @@
                 <td class="meta-label">UNIT PRICE:</td>
                 <td class="meta-value text-center">{{ $item->unit_price ? '₱ ' . number_format($item->unit_price, 2) : '' }}</td>
             </tr>
+            {{-- NEW: Added Delivery Date, Expiry Date, and Category Row --}}
+            <tr>
+                <td class="meta-label">DATE DELIVERED:</td>
+                <td class="meta-value text-center">
+                    {{ $item->date_delivered ? \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') : 'N/A' }}
+                </td>
+                <td class="meta-label">EXPIRY DATE:</td>
+                <td class="meta-value">
+                    {{ $item->expiry_date ? \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') : 'N/A' }}
+                </td>
+                <td class="meta-label">CATEGORY:</td>
+                <td class="meta-value text-center">{{ $item->category ?? 'N/A' }}</td>
+            </tr>
         </table>
 
         <table class="ledger-table">

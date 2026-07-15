@@ -110,14 +110,14 @@
                                         <option value="ORTHO" data-head="SUSIE ARMIZA">Orthopedic Ward</option>
                                         <option value="OB" data-head="WENDY MARTINEZ">OB Ward</option>
                                         <option value="ER" data-head="CHRISTINE ESQUILLO">Emergency Room</option>
-                                        <option value="FMW" data-head="CHRISTINE ESQUILLO">Female Medical Ward</option>
-                                        <option value="MMW" data-head="CHRISTINE ESQUILLO">Male Medical Ward</option>
-                                        <option value="ICU" data-head="CHRISTINE ESQUILLO">Intensive Care Unit</option>
-                                        <option value="NICU" data-head="CHRISTINE ESQUILLO">Neonatal Intensive Care Unit</option>
-                                        <option value="SURGICAL" data-head="CHRISTINE ESQUILLO">Surgical Ward</option>
-                                        <option value="PEDIA" data-head="CHRISTINE ESQUILLO">Pediatric Ward</option>
-                                        <option value="OR" data-head="CHRISTINE ESQUILLO">Operating Room</option>
-                                        <option value="PAYWARD" data-head="CHRISTINE ESQUILLO">Pay Ward</option>
+                                        <option value="FMW" data-head="MARY GRACE BUARON">Female Medical Ward</option>
+                                        <option value="MMW" data-head="JOSETTH LYNANNE TAN">Male Medical Ward</option>
+                                        <option value="ICU" data-head="DREXCY JHOY SAN ANTONIO">Intensive Care Unit</option>
+                                        <option value="NICU" data-head="MAY RACILLE JOY LANTORIA">Neonatal Intensive Care Unit</option>
+                                        <option value="SURGICAL" data-head="LOUIE ANN AJERA">Surgical Ward</option>
+                                        <option value="PEDIA" data-head="EVELYN AMBROSIO">Pediatric Ward</option>
+                                        <option value="OR" data-head="JADD LOUIE UVAS">Operating Room</option>
+                                        <option value="PAYWARD" data-head="MARIA VICTORIA ESCUTIN">Pay Ward</option>
                                         <option value="HEMO" data-head="EVANGELINE DETANOY">Hemodialysis</option>
                                         <option value="GUGMA DIALYSIS" data-head="STEPHEN ESPENOCILLA">Gugma Dialysis</option>
                                     </optgroup>
