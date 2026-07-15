@@ -13,7 +13,7 @@
             <div class="bento-card d-flex justify-content-between align-items-center">
                 <div>
                     <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions Processed</p>
-                    <h1 class="fw-bolder mb-0 display-4 text-dark">{{ count($requests) }}</h1>
+                    <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
                 </div>
                 <i class="bi bi-check-circle-fill fs-1 text-success opacity-25"></i>
             </div>
@@ -80,6 +80,12 @@
                 </tbody>
             </table>
         </div>
+        
+        @if(is_object($requests) && method_exists($requests, 'links'))
+            <div class="d-flex justify-content-end mt-4">
+                {{ $requests->links() }}
+            </div>
+        @endif
     </div>
 
     <x-slot name="scripts">

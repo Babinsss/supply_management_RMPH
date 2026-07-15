@@ -15,7 +15,7 @@ class SupplyController extends Controller
         return redirect()->route('dashboard');
     }
 
-    public function dashboard()
+   public function dashboard()
     {
         $supplies = Supply::all();
         
@@ -40,12 +40,24 @@ class SupplyController extends Controller
         }
 
         $requestsToDisplay = array_values($groupedBatches);
-        
         $pendingCount = collect($requestsToDisplay)->where('status', 'Pending')->count();
+        
+        // NEW: Custom Paginator Logic (10 items per page)
+        $perPage = 10;
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
+        $currentItems = array_slice($requestsToDisplay, ($currentPage - 1) * $perPage, $perPage);
+        
+        $paginatedRequests = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems, 
+            count($requestsToDisplay), 
+            $perPage, 
+            $currentPage, 
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
 
         return view('dashboard', [
             'items' => $supplies, 
-            'requests' => $requestsToDisplay, 
+            'requests' => $paginatedRequests, 
             'pending_count' => $pendingCount
         ]);
     }
@@ -397,30 +409,43 @@ class SupplyController extends Controller
      * Fetches grouped requests exactly like the main dashboard.
      */
     public function approverDashboard()
-        {
-            // Fetch all requests and group them by batch_id
-            $allRequests = \App\Models\DepartmentRequest::with('supply')->orderBy('created_at', 'desc')->get();
-            
-            $requests = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
-                return [
-                    'batch_id' => $batchId,
-                    'created_at' => $items->first()->created_at,
-                    'department_name' => $items->first()->department_name,
-                    'requested_by' => $items->first()->requested_by,
-                    'status' => $items->first()->status,
-                    'items' => $items
-                ];
-            })->values();
+    {
+        // Fetch all requests and group them by batch_id
+        $allRequests = \App\Models\DepartmentRequest::with('supply')->orderBy('created_at', 'desc')->get();
+        
+        $requestsCollection = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
+            return [
+                'batch_id' => $batchId,
+                'created_at' => $items->first()->created_at,
+                'department_name' => $items->first()->department_name,
+                'requested_by' => $items->first()->requested_by,
+                'status' => $items->first()->status,
+                'items' => $items
+            ];
+        })->values();
 
-            // Calculate pending batches for the stat counter
-            $pending_count = $requests->where('status', 'Pending')->count();
+        // Calculate pending batches for the stat counter
+        $pending_count = $requestsCollection->where('status', 'Pending')->count();
 
-            // Send data to the new Approver Dashboard view
-            return view('approver.dashboard', [
-                'requests' => $requests,
-                'pending_count' => $pending_count
-            ]);
-        }
+        // NEW: Custom Paginator Logic (10 items per page)
+        $perPage = 10;
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
+        $currentItems = $requestsCollection->slice(($currentPage - 1) * $perPage, $perPage)->all();
+        
+        $paginatedRequests = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems, 
+            $requestsCollection->count(), 
+            $perPage, 
+            $currentPage, 
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
+
+        // Send data to the new Approver Dashboard view
+        return view('approver.dashboard', [
+            'requests' => $paginatedRequests,
+            'pending_count' => $pending_count
+        ]);
+    }
 
     /**
      * QMO Approver Inventory
