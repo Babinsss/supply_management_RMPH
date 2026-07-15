@@ -14,7 +14,7 @@
             <div class="bento-card d-flex justify-content-between align-items-center">
                 <div>
                     <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions Processed</p>
-                    <h1 class="fw-bolder mb-0 display-4 text-dark">{{ count($requests) }}</h1>
+                    <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
                 </div>
                 <i class="bi bi-check2-all fs-1 text-primary opacity-25"></i>
             </div>
@@ -84,7 +84,6 @@
                             @endif
                         </td>
                         <td class="text-end">
-                            {{-- Transferred Buttons --}}
                             @if($batch['status'] == 'Pending')
                                 <div class="d-flex justify-content-end gap-2">
                                     <a href="/process-batch/{{ $batch['batch_id'] }}/deny" class="btn btn-sm btn-modern btn-outline-danger" onclick="return confirm('Are you sure you want to disapprove this entire request?')">
@@ -103,9 +102,15 @@
                 </tbody>
             </table>
         </div>
+
+        @if(is_object($requests) && method_exists($requests, 'links'))
+            <div class="d-flex justify-content-end mt-4">
+                {{ $requests->links() }}
+            </div>
+        @endif
     </div>
 
-    {{-- Transferred Review Modals --}}
+    {{-- Review Modals --}}
     @foreach($requests as $batch)
         @if($batch['status'] == 'Pending')
             <div class="modal fade text-start" id="approveModal-{{ $batch['batch_id'] }}" tabindex="-1" aria-hidden="true">
