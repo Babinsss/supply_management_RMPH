@@ -4,13 +4,18 @@
     <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
         
-        <div class="d-flex gap-3 align-items-center" style="width: 50%;">
+        <div class="d-flex gap-2 align-items-center" style="width: 55%;">
             {{-- Search Bar --}}
             <div class="input-group">
                 <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
+            {{-- Print Report Button --}}
+            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern bg-white text-nowrap shadow-sm border">
+                <i class="bi bi-printer-fill me-1"></i> Print Report
+            </button>
+
             {{-- Add New Item Button --}}
             <button class="btn btn-primary btn-modern text-nowrap shadow-sm" data-bs-toggle="modal" data-bs-target="#addSupplyModal">
                 <i class="bi bi-plus-lg me-1"></i> New Item

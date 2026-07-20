@@ -504,9 +504,7 @@
         @endfor
     </div>
 
-    <script>
-        window.onload = () => setTimeout(window.print, 500);
-    </script>
+    
 </body>
 
 </html>

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SupplyController;
+use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,6 +26,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     // Stockcard and Printing Actions
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
     Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
+    
+    // NEW: Print Full Inventory Route
+    Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
 
     // Inventory and Export Operations
     Route::get('/inventory', [SupplyController::class, 'inventory']);
@@ -56,10 +60,7 @@ Route::middleware(['auth', 'role:approver'])->group(function () {
 Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('portal');
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
 
-// This gives the 'auth' middleware a place to redirect unauthenticated users
-Route::get('/login', function () {
-    return "The Login Page goes here! (We need to build this next)";
-})->name('login');
+// Laravel's built-in Authentication Routes
 Auth::routes();
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

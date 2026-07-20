@@ -7,6 +7,7 @@ use App\Models\Supply;
 use App\Models\DepartmentRequest;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class SupplyController extends Controller
 {
@@ -19,8 +20,8 @@ class SupplyController extends Controller
     {
         $supplies = Supply::all();
         
-        // Pull and group requests manually by batch_id
-        $allRequests = DepartmentRequest::with('supply')
+        // Pull and group requests manually by batch_id, including the issuer
+        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -42,7 +43,7 @@ class SupplyController extends Controller
         $requestsToDisplay = array_values($groupedBatches);
         $pendingCount = collect($requestsToDisplay)->where('status', 'Pending')->count();
         
-        // NEW: Custom Paginator Logic (10 items per page)
+        // Custom Paginator Logic (10 items per page)
         $perPage = 10;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $currentItems = array_slice($requestsToDisplay, ($currentPage - 1) * $perPage, $perPage);
@@ -92,6 +93,7 @@ class SupplyController extends Controller
 
         return redirect()->route('dashboard')->with('success', "Stock updated successfully for {$item->name}!");
     }
+    
     public function update(Request $request, $id)
     {
         // 1. Validate all the fields coming from the Edit Modal
@@ -160,10 +162,10 @@ class SupplyController extends Controller
             $req->supply->save();
             
             $req->status = 'Approved';
+            $req->issued_by = Auth::id(); // Record who issued it
             $req->save();
         }
 
-        // Changed from route('dashboard') to back()
         return redirect()->back()->with('success', 'Bulk request approved and stock updated!');
     }
 
@@ -176,7 +178,6 @@ class SupplyController extends Controller
             $req->save();
         }
 
-        // Changed from route('dashboard') to back()
         return redirect()->back()->with('success', 'Bulk request denied. Stock remains unchanged.');
     }
 
@@ -312,6 +313,7 @@ class SupplyController extends Controller
 
         return response()->json(['count' => $pendingCount]);
     }
+    
     public function inventory() 
     {
         // Fetch all supplies from the database, ordered alphabetically by name
@@ -319,6 +321,15 @@ class SupplyController extends Controller
 
         // Pass the $supplies variable to the inventory view
         return view('inventory', compact('supplies'));
+    }
+
+    // NEW FUNCTION: Full Inventory Print Layout
+    public function printInventory()
+    {
+        // Fetch all items, ordered alphabetically by name
+        $supplies = Supply::orderBy('name', 'asc')->get();
+        
+        return view('print_inventory', compact('supplies'));
     }
 
     public function exportExcel(Request $request, $id)
@@ -364,6 +375,7 @@ class SupplyController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
+    
     public function exportInventoryExcel()
     {
         // Grab everything in the database
@@ -404,14 +416,15 @@ class SupplyController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
-        /**
+    
+    /**
      * QMO Approver Dashboard
      * Fetches grouped requests exactly like the main dashboard.
      */
     public function approverDashboard()
     {
-        // Fetch all requests and group them by batch_id
-        $allRequests = \App\Models\DepartmentRequest::with('supply')->orderBy('created_at', 'desc')->get();
+        // Fetch all requests and group them by batch_id, including the issuer
+        $allRequests = \App\Models\DepartmentRequest::with(['supply', 'issuer'])->orderBy('created_at', 'desc')->get();
         
         $requestsCollection = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
             return [
@@ -452,11 +465,11 @@ class SupplyController extends Controller
      * Fetches the inventory list for read-only viewing.
      */
     public function approverInventory()
-        {
-            // Fetch all supplies, ordered alphabetically
-            $supplies = \App\Models\Supply::orderBy('name', 'asc')->get();
-            
-            // Send data to the new Approver Inventory view
-            return view('approver.inventory', compact('supplies'));
-        }
+    {
+        // Fetch all supplies, ordered alphabetically
+        $supplies = \App\Models\Supply::orderBy('name', 'asc')->get();
+        
+        // Send data to the new Approver Inventory view
+        return view('approver.inventory', compact('supplies'));
+    }
 }

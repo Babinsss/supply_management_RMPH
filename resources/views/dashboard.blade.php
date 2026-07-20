@@ -46,7 +46,7 @@
                     @forelse($requests as $batch)
                     <tr class="request-row">
                         <td>
-                            @php $batchDate = $batch['created_at'] ?? $batch['items']->first()->created_at; @endphp
+                            @php $batchDate = $batch['created_at'] ?? $batch['items'][0]->created_at; @endphp
                             <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
                             <div class="text-muted-soft small">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('h:i A') }}</div>
                         </td>
@@ -77,6 +77,17 @@
                                 <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">
                                     <i class="bi bi-check-circle-fill me-1"></i> Issued
                                 </span>
+                                
+                                {{-- NEW AUDIT TRAIL BADGE --}}
+                                @php $issuer = $batch['items'][0]->issuer; @endphp
+                                @if($issuer)
+                                    <div class="mt-2 text-start" style="max-width: 140px;">
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1" style="font-size: 0.70rem; white-space: normal;">
+                                            <i class="bi bi-person-check-fill me-1"></i> {{ $issuer->name }}
+                                        </span>
+                                    </div>
+                                @endif
+                                
                             @elseif($batch['status'] == 'Denied')
                                 <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-2">
                                     <i class="bi bi-x-circle-fill me-1"></i> Cancelled
