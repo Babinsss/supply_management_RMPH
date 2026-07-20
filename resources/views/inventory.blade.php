@@ -11,7 +11,7 @@
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
-            {{-- Print Report Button --}}
+            {{-- Print Report Button (Using the seamless pop-up function) --}}
             <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern bg-white text-nowrap shadow-sm border">
                 <i class="bi bi-printer-fill me-1"></i> Print Report
             </button>
@@ -133,7 +133,8 @@
     <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bento-card p-2 border-0">
-                <form action="/inventory" method="POST">
+                {{-- FIXED: Action updated to perfectly match the /add route --}}
+                <form action="/add" method="POST">
                     @csrf
                     
                     <div class="modal-header border-0 pb-0">

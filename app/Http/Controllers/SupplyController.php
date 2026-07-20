@@ -18,6 +18,8 @@ class SupplyController extends Controller
 
    public function dashboard()
     {
+        $this->autoCancelExpiredRequests();
+
         $supplies = Supply::all();
         
         // Pull and group requests manually by batch_id, including the issuer
@@ -65,19 +67,27 @@ class SupplyController extends Controller
 
     public function addItem(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:150',
-            'quantity' => 'required|integer',
-            'unit' => 'required|string|max:50',
-            'reorder_level' => 'required|integer',
-            'ris_number' => 'nullable|string|max:100',
-            'expiry_date' => 'nullable|date',
-            'unit_price' => 'nullable|numeric|min:0',
+        // 1. Validate only the fields that actually exist in your modal
+        $validated = $request->validate([
+            'name'           => 'required|string|max:255',
+            'description'    => 'nullable|string',
+            'quantity'       => 'required|integer|min:0',
+            'unit_price'     => 'nullable|numeric|min:0',
+            'supplier'       => 'nullable|string|max:255',
+            'date_delivered' => 'nullable|date',
+            'expiry_date'    => 'nullable|date',
+            'ris_number'     => 'nullable|string|max:255',
         ]);
 
-        Supply::create($request->all());
+        // 2. Set default values for the required database columns not in the modal
+        $validated['unit'] = $request->input('unit', 'pcs'); 
+        $validated['reorder_level'] = $request->input('reorder_level', 10); 
 
-        return redirect()->route('dashboard')->with('success', 'Item added successfully!');
+        // 3. Create the item
+        Supply::create($validated);
+
+        // 4. Redirect safely back to the Inventory page (not the dashboard!)
+        return redirect()->back()->with('success', 'New item added successfully!');
     }
 
     public function updateStock(Request $request, $id)
@@ -307,6 +317,8 @@ class SupplyController extends Controller
 
     public function pendingCountApi()
     {
+        $this->autoCancelExpiredRequests(); // <-- ADD THIS LINE
+
         $pendingCount = DepartmentRequest::where('status', 'Pending')
             ->distinct('batch_id')
             ->count('batch_id');
@@ -423,6 +435,7 @@ class SupplyController extends Controller
      */
     public function approverDashboard()
     {
+        $this->autoCancelExpiredRequests();
         // Fetch all requests and group them by batch_id, including the issuer
         $allRequests = \App\Models\DepartmentRequest::with(['supply', 'issuer'])->orderBy('created_at', 'desc')->get();
         
@@ -471,5 +484,17 @@ class SupplyController extends Controller
         
         // Send data to the new Approver Inventory view
         return view('approver.inventory', compact('supplies'));
+    }
+
+    /**
+     * Auto Cancel Expired Requests
+     * Cancels any 'Pending' requests older than 24 hours.
+     */
+    private function autoCancelExpiredRequests()
+    {
+        // Find any 'Pending' requests older than 24 hours and set them to 'Denied' (Cancelled)
+        DepartmentRequest::where('status', 'Pending')
+            ->where('created_at', '<', Carbon::now()->subDay(2))
+            ->update(['status' => 'Denied']);
     }
 }
