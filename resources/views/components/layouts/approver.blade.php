@@ -36,10 +36,24 @@
                     <span class="text-primary small fw-bold">Quality Management Office</span>
                 </div>
             </div>
-            <div class="d-flex flex-wrap gap-2 nav-actions">
+            
+            <div class="d-flex flex-wrap align-items-center gap-2 nav-actions">
                 {{-- These link strictly to her specific routes --}}
                 <a href="/approver/dashboard" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-grid-fill me-2"></i>Dashboard</a>
                 <a href="/approver/inventory" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-box-seam-fill me-2"></i>View Inventory</a>
+                
+                {{-- User Profile & Logout --}}
+                <div class="ms-md-3 d-flex align-items-center gap-3 border-start ps-md-3 pt-2 pt-md-0 border-secondary-subtle">
+                    @auth
+                        <span class="fw-bold text-dark"><i class="bi bi-person-circle text-primary me-1"></i> {{ Auth::user()->name }}</span>
+                        <form method="POST" action="/logout" class="d-inline m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-danger btn-modern shadow-sm">
+                                <i class="bi bi-box-arrow-right me-1"></i> Sign Out
+                            </button>
+                        </form>
+                    @endauth
+                </div>
             </div>
         </nav>
 

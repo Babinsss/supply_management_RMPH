@@ -44,8 +44,8 @@
                             @endif
 
                             {{-- Supplier, Delivery, Expiry & Price Info Group --}}
-                            <div class="d-flex flex-wrap gap-3 mt-1">
-                                {{-- NEW: Unit Price Display --}}
+                            <div class="d-flex flex-wrap align-items-center gap-3 mt-1">
+                                {{-- Unit Price Display --}}
                                 @if($item->unit_price)
                                     <span class="text-success fw-bold" style="font-size: 0.75rem;">
                                         <i class="bi bi-tag-fill me-1"></i>₱{{ number_format($item->unit_price, 2) }}
@@ -60,17 +60,39 @@
                                     <span class="text-muted-soft" style="font-size: 0.75rem;"><i class="bi bi-calendar-check me-1"></i>Delivered: {{ \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') }}</span>
                                 @endif
 
+                                {{-- Smart Alert: Expiry Logic --}}
                                 @if($item->expiry_date)
-                                    <span class="text-danger fw-bold" style="font-size: 0.75rem;"><i class="bi bi-calendar-x me-1"></i>Exp: {{ \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') }}</span>
+                                    @php 
+                                        // Calculate days until expiry
+                                        $daysToExpiry = \Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false); 
+                                    @endphp
+                                    
+                                    @if($daysToExpiry < 0)
+                                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger rounded-pill px-2 py-1">
+                                            <i class="bi bi-exclamation-circle-fill"></i> Expired
+                                        </span>
+                                    @elseif($daysToExpiry <= 60)
+                                        <span class="badge bg-warning bg-opacity-25 text-dark border border-warning rounded-pill px-2 py-1">
+                                            <i class="bi bi-clock-history"></i> Expires in {{ floor($daysToExpiry) }} days
+                                        </span>
+                                    @else
+                                        <span class="text-muted-soft" style="font-size: 0.75rem;">
+                                            <i class="bi bi-calendar-check me-1"></i>Exp: {{ \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') }}
+                                        </span>
+                                    @endif
                                 @endif
                             </div>
                         </td>
                         
-                        {{-- Stock Quantity --}}
+                        {{-- Smart Alert: Stock Quantity --}}
                         <td>
-                            <span class="badge {{ $item->quantity > 0 ? 'bg-success text-success' : 'bg-danger text-danger' }} bg-opacity-10 rounded-pill px-3 py-2 border {{ $item->quantity > 0 ? 'border-success' : 'border-danger' }} border-opacity-25">
-                                {{ $item->quantity }} Units
-                            </span>
+                            <span class="fw-bold fs-5">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                            
+                            @if($item->quantity == 0)
+                                <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
+                            @elseif($item->quantity <= $item->reorder_level)
+                                <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
+                            @endif
                         </td>
                         
                         {{-- RIS Number Column --}}
@@ -106,7 +128,7 @@
     <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bento-card p-2 border-0">
-                <form action="/add" method="POST">
+                <form action="/inventory" method="POST">
                     @csrf
                     
                     <div class="modal-header border-0 pb-0">
@@ -150,20 +172,10 @@
                                 <input type="date" class="input-modern" name="expiry_date">
                             </div>
 
-                            {{-- Replaced col-12 with an 8/4 split for RIS and Category --}}
-                            <div class="col-md-8">
+                            <div class="col-12">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                 <input type="text" class="input-modern" name="ris_number" placeholder="e.g. RIS-2026-07-001">
                             </div>
-                            
-                            <div class="col-md-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                <input type="text" class="input-modern" name="category" placeholder="e.g. IT Equipment">
-                            </div>
-                            
-                            {{-- Added Hidden Inputs Required by Controller --}}
-                            <input type="hidden" name="unit" value="pcs">
-                            <input type="hidden" name="reorder_level" value="10">
                         </div>
                     </div>
                     
@@ -226,15 +238,9 @@
                                     <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
                                 </div>
 
-                                {{-- Replaced col-12 with an 8/4 split for RIS and Category --}}
-                                <div class="col-md-8">
+                                <div class="col-12">
                                     <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                     <input type="text" class="input-modern" name="ris_number" value="{{ $item->ris_number }}">
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                    <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. Office Supplies">
                                 </div>
                             </div>
                         </div>

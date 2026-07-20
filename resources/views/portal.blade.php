@@ -100,7 +100,7 @@
                                         <option value="CSR" data-head="MIA BUENVENIDA">Central Supply Room</option>
                                         <option value="LAB" data-head="MARIJOE ARTATES">Laboratory</option>
                                         <option value="RADIO" data-head="SOCRATES BERCADEZ">Radiology</option>
-                                        <option value="PHARMA" data-head="SHARA SANTOS">Pharmacy</option>
+                                        <option value="PHARMA" data-head="SHARA PATRIA SANTOS">Pharmacy</option>
                                         <option value="CARDIO PULMONARY" data-head="SONIA FLORENCIO">Cardio Pulmonary</option>
                                         <option value="WCPU" data-head="ANNIELEE ARIEL">WCPU</option>
                                         <option value="IW" data-head="ANABELLE DENAGA">Institutional Workers</option>
