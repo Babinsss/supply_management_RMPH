@@ -177,7 +177,10 @@
                                 <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
                                 <input type="date" class="input-modern" name="expiry_date">
                             </div>
-
+                            <div class="col-md-5">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. ICT Supplies">
+                            </div>
                             <div class="col-12">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                 <input type="text" class="input-modern" name="ris_number" placeholder="e.g. RIS-2026-07-001">
@@ -230,7 +233,7 @@
                                 <div class="col-12">
                                     <hr class="my-2 border-light">
                                 </div>
-
+                                
                                 <div class="col-md-4">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
                                     <input type="text" class="input-modern" name="supplier" value="{{ $item->supplier }}">
@@ -243,7 +246,10 @@
                                     <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
                                     <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
                                 </div>
-
+                                <div class="col-md-5">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                    <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. ICT Supplies">
+                                </div>
                                 <div class="col-12">
                                     <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                     <input type="text" class="input-modern" name="ris_number" value="{{ $item->ris_number }}">

@@ -70,6 +70,7 @@ class SupplyController extends Controller
         // 1. Validate only the fields that actually exist in your modal
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
+            'category'       => 'nullable|string|max:150',
             'description'    => 'nullable|string',
             'quantity'       => 'required|integer|min:0',
             'unit_price'     => 'nullable|numeric|min:0',
@@ -109,6 +110,7 @@ class SupplyController extends Controller
         // 1. Validate all the fields coming from the Edit Modal
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'category'       => 'nullable|string|max:150',
             'description' => 'nullable|string',
             'quantity' => 'required|integer|min:0', // This replaces the old quantity completely
             'ris_number' => 'nullable|string|max:255',
