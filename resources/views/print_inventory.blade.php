@@ -14,10 +14,6 @@
 
         .paper-preview { background: #fff; max-width: 8.5in; margin: 60px auto; padding: 0.4in; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         
-        .header-text { text-align: center; margin-bottom: 20px; flex-grow: 1; }
-        .header-text h3 { margin: 0; font-size: 15px; }
-        .header-text p { margin: 2px 0; font-size: 11px; }
-        
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
         th, td { border: 1px solid #000; padding: 6px; text-align: left; }
         th { background-color: #f8f8f8; text-align: center; font-weight: bold; text-transform: uppercase; }
@@ -42,17 +38,35 @@
     </div>
 
     <div class="paper-preview">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
-            <img src="{{ asset('images/capiz.jpg') }}" style="height: 55px;">
-            <div class="header-text">
-                <p>Republic of the Philippines</p>
-                <p>Province of Capiz</p>
-                <h3>ROXAS MEMORIAL PROVINCIAL HOSPITAL</h3>
-                <p>Arnaldo Boulevard, Roxas City</p>
-                <h3 style="margin-top: 15px; text-decoration: underline;">MONTHLY INVENTORY REPORT</h3>
-                <p>As of {{ date('F d, Y') }}</p>
+        
+        {{-- NEW: Flexbox Official Report Header --}}
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid black; padding-bottom: 15px; margin-bottom: 20px;">
+            
+            {{-- Left Logo: Capiz Province --}}
+            <div style="width: 120px; text-align: left;">
+                <img src="{{ asset('images/capiz.jpg') }}" style="width: 95px; height: 95px; object-fit: contain;" alt="Capiz Logo">
             </div>
-            <img src="{{ asset('images/rmph.jpg') }}" style="height: 45px;">
+
+            {{-- Center Text --}}
+            <div style="flex: 1; text-align: center;">
+                <div style="font-size: 12px; line-height: 1.3;">
+                    Republic of the Philippines<br>
+                    Province of Capiz<br>
+                    <strong style="font-size: 18px; letter-spacing: 0.5px;">ROXAS MEMORIAL PROVINCIAL HOSPITAL</strong><br>
+                    Arnaldo Boulevard, Roxas City
+                </div>
+                
+                <div style="margin-top: 15px; line-height: 1.3;">
+                    <strong style="font-size: 15px; text-decoration: underline;">MONTHLY INVENTORY REPORT</strong><br>
+                    <span style="font-size: 12px;">As of {{ date('F d, Y') }}</span>
+                </div>
+            </div>
+
+            {{-- Right Logo: RMPH --}}
+            <div style="width: 120px; text-align: right;">
+                <img src="{{ asset('images/rmph.jpg') }}" style="width: 95px; height: 95px; object-fit: contain;" alt="RMPH Logo">
+            </div>
+            
         </div>
 
         <table>
@@ -94,7 +108,7 @@
                     {{-- Automatically prints the name of the ICT staff logged in --}}
                     <span class="sig-name">{{ Auth::user()->name }}</span>
                 </div>
-                <div class="text-center" style="font-size: 10px;">ICT / Supply Section</div>
+                <div class="text-center" style="font-size: 10px;">Supply Section</div>
             </div>
             
             <div class="sig-block">
@@ -107,6 +121,5 @@
         </div>
     </div>
 
-    
 </body>
 </html>

@@ -6,6 +6,17 @@ use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
+| SHARED ROUTES (Accessible by BOTH Admin and Approver)
+|--------------------------------------------------------------------------
+| Locked behind basic 'auth' middleware so only logged-in users can access.
+*/
+Route::middleware(['auth'])->group(function () {
+    // Both ICT Admin and QMO Approver need to print stockcards
+    Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | ICT SECTION (ADMIN) ROUTES
 |--------------------------------------------------------------------------
 | Locked behind 'admin' role middleware. Only ICT can issue and edit.
@@ -23,11 +34,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/process-batch/{batch_id}/approve', [SupplyController::class, 'approveBatch']);
     Route::get('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
 
-    // Stockcard and Printing Actions
-    Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
+    // Printing Actions
     Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
-    
-    // NEW: Print Full Inventory Route
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
 
     // Inventory and Export Operations
