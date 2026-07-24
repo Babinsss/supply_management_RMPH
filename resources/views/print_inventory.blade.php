@@ -73,11 +73,12 @@
             <thead>
                 <tr>
                     <th width="5%">#</th>
-                    <th width="40%">Item Description</th>
+                    <th width="30%">Item Description</th>
                     <th width="15%">Category</th>
                     <th width="10%">Unit</th>
+                    <th width="15%">Items Issued</th>
                     <th width="15%">Available Stock</th>
-                    <th width="15%">Status</th>
+                    <th width="10%">Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -92,6 +93,12 @@
                     </td>
                     <td class="text-center">{{ $item->category ?? 'N/A' }}</td>
                     <td class="text-center">{{ $item->unit }}</td>
+                    
+                    {{-- Items Issued Column --}}
+                    <td class="text-center" style="font-weight: bold; font-size: 12px; color: #333;">
+                        {{ $item->department_requests_sum_quantity ?? 0 }}
+                    </td>
+
                     <td class="text-center" style="font-weight: bold; font-size: 12px;">{{ $item->quantity }}</td>
                     <td class="text-center" style="font-weight: bold; color: {{ $item->quantity <= $item->reorder_level ? 'red' : 'black' }};">
                         {{ $item->quantity <= $item->reorder_level ? 'LOW STOCK' : 'NORMAL' }}

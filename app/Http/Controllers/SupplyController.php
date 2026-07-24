@@ -340,8 +340,10 @@ class SupplyController extends Controller
     // NEW FUNCTION: Full Inventory Print Layout
     public function printInventory()
     {
-        // Fetch all items, ordered alphabetically by name
-        $supplies = Supply::orderBy('name', 'asc')->get();
+        // This automatically adds up the 'quantity' from the department_requests table
+        $supplies = Supply::withSum('departmentRequests', 'quantity')
+            ->orderBy('name', 'asc')
+            ->get();
         
         return view('print_inventory', compact('supplies'));
     }

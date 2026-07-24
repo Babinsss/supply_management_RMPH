@@ -31,7 +31,7 @@
                     <tr>
                         <th>Item & Details</th>
                         <th>Current Stock</th>
-                        <th>RIS Status</th>
+                        <th>RIS Number</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>

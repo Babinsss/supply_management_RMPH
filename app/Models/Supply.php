@@ -20,4 +20,9 @@ class Supply extends Model
     {
         return $this->hasMany(DepartmentRequest::class, 'supply_id');
     }
+    // Add this inside your Supply class
+    public function departmentRequests()
+    {
+        return $this->hasMany(DepartmentRequest::class, 'supply_id');
+    }
 }

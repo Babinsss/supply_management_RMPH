@@ -186,28 +186,12 @@
             font-size: 9px;
         }
 
-        /* NEW TABLE COLUMNS */
+        /* UPDATED TABLE COLUMNS */
         .col-desc { width: 45%; text-align: left; }
         .col-unit { width: 10%; }
         .col-qty-req { width: 15%; }
-        .col-stock-avail { width: 15%; }
         .col-qty-issued { width: 15%; }
-
-        /* CHECKBOX STYLING FOR PRINT */
-        .checkbox-container {
-            text-align: left;
-            padding-left: 8px;
-            font-size: 9px;
-            line-height: 1.5;
-        }
-        .checkbox-box {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border: 1px solid #000;
-            margin-right: 4px;
-            vertical-align: middle;
-        }
+        .col-remarks { width: 15%; }
 
         .purpose-section {
             display: flex;
@@ -380,8 +364,8 @@
                             <th class="col-desc">Description</th>
                             <th class="col-unit">Unit</th>
                             <th class="col-qty-req">Qty<br>Requested</th>
-                            <th class="col-stock-avail">Stock<br>Availability</th>
                             <th class="col-qty-issued">Qty<br>Issued</th>
+                            <th class="col-remarks">Remarks</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -390,15 +374,17 @@
                                 <td class="col-desc" style="padding: 8px 6px;">
                                     <strong>{{ $item->supply->name }}</strong><br>
                                     <span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
+                                    
+                                    {{-- Conditionally display RIS Number --}}
+                                    @if(!empty($item->supply->ris_number))
+                                        <br><span style="font-size: 9px; font-weight: bold; color: #444;">RIS #: {{ $item->supply->ris_number }}</span>
+                                    @elseif(!empty($item->ris_number))
+                                        <br><span style="font-size: 9px; font-weight: bold; color: #444;">RIS #: {{ $item->ris_number }}</span>
+                                    @endif
                                 </td>
                                 <td style="padding: 8px 4px;">{{ $item->supply->unit ?? '' }}</td>
                                 <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}</td>
-                                <td style="padding: 4px;">
-                                    <div class="checkbox-container">
-                                        <div><span class="checkbox-box"></span> Available</div>
-                                        <div><span class="checkbox-box"></span> Not available</div>
-                                    </div>
-                                </td>
+                                <td style="padding: 8px 4px;"></td>
                                 <td style="padding: 8px 4px;"></td>
                             </tr>
                         @endforeach
@@ -416,12 +402,7 @@
                                     <td style="padding: 10px;"></td>
                                     <td></td>
                                     <td></td>
-                                    <td style="padding: 4px;">
-                                        <div class="checkbox-container">
-                                            <div><span class="checkbox-box"></span> Available</div>
-                                            <div><span class="checkbox-box"></span> Not available</div>
-                                        </div>
-                                    </td>
+                                    <td></td>
                                     <td></td>
                                 </tr>
                             @endfor
@@ -504,7 +485,6 @@
         @endfor
     </div>
 
-    
 </body>
 
 </html>
