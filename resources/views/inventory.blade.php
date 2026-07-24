@@ -133,7 +133,6 @@
     <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bento-card p-2 border-0">
-                {{-- FIXED: Action updated to perfectly match the /add route --}}
                 <form action="/add" method="POST">
                     @csrf
                     
@@ -179,7 +178,8 @@
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. ICT Supplies">
+                                {{-- FIXED: Removed the rogue $item variable from this input --}}
+                                <input type="text" class="input-modern" name="category" placeholder="e.g. ICT Supplies">
                             </div>
                             <div class="col-12">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
