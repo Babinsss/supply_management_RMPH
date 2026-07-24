@@ -116,6 +116,7 @@
                                         <option value="Building & Maintenance" data-head="MARY JANE BALDISMO">Building & Maintenance</option>
                                         <option value="Credit & Collection" data-head="MEMIA BUGTONG">Credit & Collection</option>
                                         <option value="HR" data-head="FRANCES THERESE MIRANDA">Human Resources</option>
+                                        <option value="Supply" data-head="LADY ORTALEZ LUCES">Supply Section</option>
                                         <option value="ICT" data-head="AIZA OBLIGAR">ICT</option>
                                         <option value="Medical Records" data-head="SHERYL ABLAO">Medical Records</option>
                                         <option value="Cashier" data-head="ROSELA FERNANDO">Cashier</option>
