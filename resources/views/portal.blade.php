@@ -257,8 +257,7 @@
         // Initialize Select2 Search
         $(document).ready(function() {
             $('#supplySelect').select2({
-                placeholder: "Search inventory items...",
-                allowClear: true
+                placeholder: "Search inventory items..."
             });
         });
 
