@@ -498,7 +498,7 @@ class SupplyController extends Controller
     {
         // Find any 'Pending' requests older than 24 hours and set them to 'Denied' (Cancelled)
         DepartmentRequest::where('status', 'Pending')
-            ->where('created_at', '<', Carbon::now()->subDay(2))
+            ->where('created_at', '<', Carbon::now()->subDay(3))
             ->update(['status' => 'Denied']);
     }
 }
