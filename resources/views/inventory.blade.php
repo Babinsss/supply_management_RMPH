@@ -1,19 +1,24 @@
 <x-layouts.admin title="Inventory | Supply Hub">
 
-    {{-- Top Action Bar with Search --}}
-    <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3">
+    {{-- Top Action Bar with Search & Buttons --}}
+    <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
         
-        <div class="d-flex gap-2 align-items-center" style="width: 55%;">
+        <div class="d-flex gap-2 align-items-center" style="width: 60%;">
             {{-- Search Bar --}}
             <div class="input-group">
                 <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
-            {{-- Print Report Button (Using the seamless pop-up function) --}}
+            {{-- NEW: Monthly Report Modal Trigger --}}
+            <button type="button" class="btn btn-outline-secondary btn-modern bg-white text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+                <i class="bi bi-calendar-check me-1"></i> Monthly Report
+            </button>
+
+            {{-- Print Report Button (General) --}}
             <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern bg-white text-nowrap shadow-sm border">
-                <i class="bi bi-printer-fill me-1"></i> Print Report
+                <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
 
             {{-- Add New Item Button --}}
@@ -23,8 +28,17 @@
         </div>
     </div>
 
+    {{-- Category Segregation Filter Buttons --}}
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('OFFICE SUPPLIES', this)">Office Supplies</button>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MEDICAL SUPPLIES', this)">Medical Supplies</button>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('JANITORIAL SUPPLIES', this)">Janitorial Supplies</button>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MEDICAL EQUIPMENT', this)">Medical Equipment</button>
+    </div>
+
     {{-- Main Inventory Table --}}
-    <div class="bento-card mb-5">
+    <div class="bento-card mb-4">
         <div class="table-responsive">
             <table class="table table-clean mb-0" id="inventoryTable">
                 <thead>
@@ -36,96 +50,163 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {{-- Flat loop for clean pagination --}}
                     @forelse($supplies as $item)
-                    <tr class="inventory-row">
-                        {{-- Item Name, Description, Supplier, Delivery, Expiry & PRICE --}}
-                        <td>
-                            <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
-                            
-                            @if($item->description)
-                                <div class="text-muted text-uppercase item-desc mb-2" style="font-size: 0.70rem; letter-spacing: 0.5px;">
-                                    {{ $item->description }}
-                                </div>
-                            @endif
-
-                            {{-- Supplier, Delivery, Expiry & Price Info Group --}}
-                            <div class="d-flex flex-wrap align-items-center gap-3 mt-1">
-                                {{-- Unit Price Display --}}
-                                @if($item->unit_price)
-                                    <span class="text-success fw-bold" style="font-size: 0.75rem;">
-                                        <i class="bi bi-tag-fill me-1"></i>₱{{ number_format($item->unit_price, 2) }}
-                                    </span>
-                                @endif
-
-                                @if($item->supplier)
-                                    <span class="text-muted-soft item-supplier" style="font-size: 0.75rem;"><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span>
-                                @endif
+                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}">
+                            {{-- Item Name, Badge, Description, Supplier, Delivery, Expiry & PRICE --}}
+                            <td>
+                                <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
                                 
-                                @if($item->date_delivered)
-                                    <span class="text-muted-soft" style="font-size: 0.75rem;"><i class="bi bi-calendar-check me-1"></i>Delivered: {{ \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') }}</span>
-                                @endif
-
-                                {{-- Smart Alert: Expiry Logic --}}
-                                @if($item->expiry_date)
-                                    @php 
-                                        // Calculate days until expiry
-                                        $daysToExpiry = \Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false); 
-                                    @endphp
-                                    
-                                    @if($daysToExpiry < 0)
-                                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger rounded-pill px-2 py-1">
-                                            <i class="bi bi-exclamation-circle-fill"></i> Expired
-                                        </span>
-                                    @elseif($daysToExpiry <= 60)
-                                        <span class="badge bg-warning bg-opacity-25 text-dark border border-warning rounded-pill px-2 py-1">
-                                            <i class="bi bi-clock-history"></i> Expires in {{ floor($daysToExpiry) }} days
-                                        </span>
-                                    @else
-                                        <span class="text-muted-soft" style="font-size: 0.75rem;">
-                                            <i class="bi bi-calendar-check me-1"></i>Exp: {{ \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') }}
+                                {{-- Category Badge & Description --}}
+                                <div class="mb-2 mt-1">
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-0 me-1" style="font-size: 0.65rem;">
+                                        {{ $item->category ?: 'UNCATEGORIZED' }}
+                                    </span>
+                                    @if($item->description)
+                                        <span class="text-muted text-uppercase item-desc" style="font-size: 0.70rem; letter-spacing: 0.5px;">
+                                            • {{ $item->description }}
                                         </span>
                                     @endif
-                                @endif
-                            </div>
-                        </td>
-                        
-                        {{-- Smart Alert: Stock Quantity --}}
-                        <td>
-                            <span class="fw-bold fs-5">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                                </div>
+
+                                {{-- Supplier, Delivery, Expiry & Price Info Group --}}
+                                <div class="d-flex flex-wrap align-items-center gap-3 mt-1">
+                                    {{-- Unit Price Display --}}
+                                    @if($item->unit_price)
+                                        <span class="text-success fw-bold" style="font-size: 0.75rem;">
+                                            <i class="bi bi-tag-fill me-1"></i>₱{{ number_format($item->unit_price, 2) }}
+                                        </span>
+                                    @endif
+
+                                    @if($item->supplier)
+                                        <span class="text-muted-soft item-supplier" style="font-size: 0.75rem;"><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span>
+                                    @endif
+                                    
+                                    @if($item->date_delivered)
+                                        <span class="text-muted-soft" style="font-size: 0.75rem;"><i class="bi bi-calendar-check me-1"></i>Delivered: {{ \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') }}</span>
+                                    @endif
+
+                                    {{-- Smart Alert: Expiry Logic --}}
+                                    @if($item->expiry_date)
+                                        @php 
+                                            // Calculate days until expiry
+                                            $daysToExpiry = \Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false); 
+                                        @endphp
+                                        
+                                        @if($daysToExpiry < 0)
+                                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger rounded-pill px-2 py-1">
+                                                <i class="bi bi-exclamation-circle-fill"></i> Expired
+                                            </span>
+                                        @elseif($daysToExpiry <= 60)
+                                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning rounded-pill px-2 py-1">
+                                                <i class="bi bi-clock-history"></i> Expires in {{ floor($daysToExpiry) }} days
+                                            </span>
+                                        @else
+                                            <span class="text-muted-soft" style="font-size: 0.75rem;">
+                                                <i class="bi bi-calendar-check me-1"></i>Exp: {{ \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') }}
+                                            </span>
+                                        @endif
+                                    @endif
+                                </div>
+                            </td>
                             
-                            @if($item->quantity == 0)
-                                <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
-                            @elseif($item->quantity <= $item->reorder_level)
-                                <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
-                            @endif
-                        </td>
-                        
-                        {{-- RIS Number Column --}}
-                        <td>
-                            @if($item->ris_number)
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 item-ris">
-                                    <i class="bi bi-hash"></i> {{ $item->ris_number }}
-                                </span>
-                            @else
-                                <span class="text-muted-soft small fst-italic">Without RIS</span>
-                            @endif
-                        </td>
-                        
-                        {{-- Actions (Stockcard & Edit) --}}
-                        <td class="text-end text-nowrap">
-                            <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')">
-                                <i class="bi bi-printer"></i> Stockcard
-                            </button>
-                            <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
-                                <i class="bi bi-pencil-square"></i> Edit
-                            </button>
-                        </td>
-                    </tr>
+                            {{-- Smart Alert: Stock Quantity --}}
+                            <td>
+                                <span class="fw-bold fs-5">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                                
+                                @if($item->quantity == 0)
+                                    <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
+                                @elseif($item->quantity <= $item->reorder_level)
+                                    <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
+                                @endif
+                            </td>
+                            
+                            {{-- RIS Number Column --}}
+                            <td>
+                                @if($item->ris_number)
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 item-ris">
+                                        <i class="bi bi-hash"></i> {{ $item->ris_number }}
+                                    </span>
+                                @else
+                                    <span class="text-muted-soft small fst-italic">Without RIS</span>
+                                @endif
+                            </td>
+                            
+                            {{-- Actions (Stockcard & Edit) --}}
+                            <td class="text-end text-nowrap">
+                                <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')">
+                                    <i class="bi bi-printer"></i> Stockcard
+                                </button>
+                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
+                                    <i class="bi bi-pencil-square"></i> Edit
+                                </button>
+                            </td>
+                        </tr>
                     @empty
-                    <tr><td colspan="4" class="text-center py-5 text-muted-soft fw-medium">No inventory items found. Add some supplies to get started!</td></tr>
+                        <tr><td colspan="4" class="text-center py-5 text-muted-soft fw-medium">No inventory items found. Add some supplies to get started!</td></tr>
                     @endforelse
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    {{-- Pagination Controls Container --}}
+    <nav aria-label="Inventory Pagination" class="mb-5">
+        <ul class="pagination justify-content-end" id="paginationControls">
+            {{-- Injected dynamically via Javascript --}}
+        </ul>
+    </nav>
+
+    {{-- OUTSIDE ARCHITECTURE: Monthly Report Modal --}}
+    <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bento-card p-3 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bolder text-dark">Generate Monthly Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
+                            <select id="reportMonth" class="form-select input-modern">
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08" selected>August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Year</label>
+                            <input type="number" id="reportYear" class="input-modern" value="{{ date('Y') }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Category Filter</label>
+                            <select id="reportCategory" class="form-select input-modern">
+                                <option value="ALL">All Categories</option>
+                                <option value="OFFICE SUPPLIES">OFFICE SUPPLIES</option>
+                                <option value="MEDICAL SUPPLIES">MEDICAL SUPPLIES</option>
+                                <option value="JANITORIAL SUPPLIES">JANITORIAL SUPPLIES</option>
+                                <option value="MEDICAL EQUIPMENT">MEDICAL EQUIPMENT</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-2">
+                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-modern shadow-sm" onclick="printMonthlyReport()">
+                        <i class="bi bi-printer-fill me-2"></i> Print Report
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -176,11 +257,19 @@
                                 <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
                                 <input type="date" class="input-modern" name="expiry_date">
                             </div>
+                            
+                            {{-- Category Dropdown (ICT Supplies removed) --}}
                             <div class="col-md-5">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                {{-- FIXED: Removed the rogue $item variable from this input --}}
-                                <input type="text" class="input-modern" name="category" placeholder="e.g. ICT Supplies">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
+                                <select class="form-select input-modern" name="category" required>
+                                    <option value="" disabled selected>Select Category...</option>
+                                    <option value="OFFICE SUPPLIES">OFFICE SUPPLIES</option>
+                                    <option value="MEDICAL SUPPLIES">MEDICAL SUPPLIES</option>
+                                    <option value="JANITORIAL SUPPLIES">JANITORIAL SUPPLIES</option>
+                                    <option value="MEDICAL EQUIPMENT">MEDICAL EQUIPMENT</option>
+                                </select>
                             </div>
+                            
                             <div class="col-12">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                 <input type="text" class="input-modern" name="ris_number" placeholder="e.g. RIS-2026-07-001">
@@ -246,10 +335,18 @@
                                     <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
                                     <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
                                 </div>
+                                
+                                {{-- Edit Category Dropdown (ICT Supplies removed) --}}
                                 <div class="col-md-5">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                    <input type="text" class="input-modern" name="category" value="{{ $item->category }}" placeholder="e.g. ICT Supplies">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
+                                    <select class="form-select input-modern" name="category" required>
+                                        <option value="OFFICE SUPPLIES" {{ $item->category == 'OFFICE SUPPLIES' ? 'selected' : '' }}>OFFICE SUPPLIES</option>
+                                        <option value="MEDICAL SUPPLIES" {{ $item->category == 'MEDICAL SUPPLIES' ? 'selected' : '' }}>MEDICAL SUPPLIES</option>
+                                        <option value="JANITORIAL SUPPLIES" {{ $item->category == 'JANITORIAL SUPPLIES' ? 'selected' : '' }}>JANITORIAL SUPPLIES</option>
+                                        <option value="MEDICAL EQUIPMENT" {{ $item->category == 'MEDICAL EQUIPMENT' ? 'selected' : '' }}>MEDICAL EQUIPMENT</option>
+                                    </select>
                                 </div>
+                                
                                 <div class="col-12">
                                     <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
                                     <input type="text" class="input-modern" name="ris_number" value="{{ $item->ris_number }}">
@@ -267,10 +364,10 @@
         </div>
     @endforeach
 
-    {{-- Javascript for Real-Time Search & Seamless Printing --}}
+    {{-- Javascript for Filters, Pagination, & Printing --}}
     <x-slot name="scripts">
         <script>
-            // Seamless Hidden Iframe Print Function
+            // --- SEAMLESS PRINTING ---
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
@@ -285,24 +382,127 @@
                 };
             }
 
-            // Inventory Search Filter
-            function filterInventory() {
-                let input = document.getElementById('searchInput').value.toLowerCase();
-                let rows = document.querySelectorAll('.inventory-row');
+            // --- MONTHLY REPORT LOGIC ---
+            function printMonthlyReport() {
+                let month = document.getElementById('reportMonth').value;
+                let year = document.getElementById('reportYear').value;
+                let category = document.getElementById('reportCategory').value;
                 
-                rows.forEach(row => {
-                    let name = row.querySelector('.item-name') ? row.querySelector('.item-name').innerText.toLowerCase() : '';
-                    let desc = row.querySelector('.item-desc') ? row.querySelector('.item-desc').innerText.toLowerCase() : '';
-                    let ris = row.querySelector('.item-ris') ? row.querySelector('.item-ris').innerText.toLowerCase() : '';
-                    let supplier = row.querySelector('.item-supplier') ? row.querySelector('.item-supplier').innerText.toLowerCase() : '';
+                // Build the URL with the selected filters
+                let url = `/print-inventory?month=${month}&year=${year}&category=${encodeURIComponent(category)}`;
+                
+                // Close the modal cleanly
+                let modalElement = document.getElementById('monthlyReportModal');
+                let modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if(modalInstance) {
+                    modalInstance.hide();
+                }
+                
+                // Send to the seamless print function
+                printDirectly(url);
+            }
+
+            // --- FILTERING & PAGINATION LOGIC ---
+            let currentPage = 1;
+            const rowsPerPage = 10; // Change this number to show more/less items per page
+            let currentCategory = 'ALL';
+
+            // Runs when a category pill button is clicked
+            function setCategory(cat, btnElement) {
+                currentCategory = cat;
+                currentPage = 1; // Reset to page 1 on new filter
+
+                // Update button styles to show active state
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.classList.remove('btn-primary', 'shadow-sm');
+                    btn.classList.add('btn-outline-primary');
+                });
+                btnElement.classList.remove('btn-outline-primary');
+                btnElement.classList.add('btn-primary', 'shadow-sm');
+
+                applyFiltersAndPagination();
+            }
+
+            // Runs when the search bar is typed in
+            function filterInventory() {
+                currentPage = 1; // Reset to page 1 on new search
+                applyFiltersAndPagination();
+            }
+
+            // Core function to handle what rows are visible
+            function applyFiltersAndPagination() {
+                let searchText = document.getElementById('searchInput').value.toLowerCase();
+                let allRows = document.querySelectorAll('.inventory-row');
+                let visibleRows = [];
+
+                // 1. Filter the rows by Search + Category
+                allRows.forEach(row => {
+                    let rowCategory = row.getAttribute('data-category');
+                    let rowText = row.innerText.toLowerCase();
                     
-                    if (name.includes(input) || desc.includes(input) || ris.includes(input) || supplier.includes(input)) {
+                    let matchesSearch = rowText.includes(searchText);
+                    let matchesCategory = (currentCategory === 'ALL' || rowCategory === currentCategory);
+
+                    if (matchesSearch && matchesCategory) {
+                        visibleRows.push(row);
+                    }
+                    row.style.display = 'none'; // Hide all initially
+                });
+
+                // 2. Calculate Pagination
+                let totalPages = Math.ceil(visibleRows.length / rowsPerPage) || 1;
+                if (currentPage > totalPages) currentPage = totalPages;
+
+                let startIndex = (currentPage - 1) * rowsPerPage;
+                let endIndex = startIndex + rowsPerPage;
+
+                // 3. Show only the rows for the current page
+                visibleRows.forEach((row, index) => {
+                    if (index >= startIndex && index < endIndex) {
                         row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
                     }
                 });
+
+                // 4. Update the Pagination HTML at the bottom
+                renderPagination(totalPages);
             }
+
+            // Runs when a pagination number is clicked
+            function changePage(page) {
+                currentPage = page;
+                applyFiltersAndPagination();
+                window.scrollTo({ top: 0, behavior: 'smooth' }); // Optional: scrolls to top on page change
+            }
+
+            // Builds the Bootstrap Pagination Buttons
+            function renderPagination(totalPages) {
+                let container = document.getElementById('paginationControls');
+                let html = '';
+
+                // Only show pagination if there is more than 1 page
+                if (totalPages > 1) {
+                    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                                <button class="page-link shadow-sm" onclick="changePage(${currentPage - 1})">Previous</button>
+                             </li>`;
+                    
+                    for (let i = 1; i <= totalPages; i++) {
+                        html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
+                                    <button class="page-link shadow-sm" onclick="changePage(${i})">${i}</button>
+                                 </li>`;
+                    }
+
+                    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                                <button class="page-link shadow-sm" onclick="changePage(${currentPage + 1})">Next</button>
+                             </li>`;
+                }
+
+                container.innerHTML = html;
+            }
+
+            // Initialize the table properly as soon as the page loads
+            document.addEventListener('DOMContentLoaded', () => {
+                applyFiltersAndPagination();
+            });
         </script>
     </x-slot>
 

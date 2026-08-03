@@ -17,7 +17,7 @@
         .btn-print { background-color: #8ab4f8; color: #202124; }
         .btn-back { background-color: transparent; color: #e8eaed; border: 1px solid #5f6368; }
         
-        .paper-preview { background-color: #fff; width: 13in; min-height: 8.5in; margin: 70px auto 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); padding: 0.5in; box-sizing: border-box; }
+        .paper-preview { background-color: #fff; width: 13in; min-height: 8.5in; margin: 70px auto 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); padding: 0.5in; box-sizing: border-box; }
         
         .form-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; font-size: 10px; font-weight: bold; }
         .form-title { text-align: center; flex-grow: 1; font-size: 18px; letter-spacing: 2px; font-weight: bold; margin-top: 15px; }
@@ -32,11 +32,34 @@
         .ledger-table th { font-weight: bold; text-transform: uppercase; font-size: 8px; }
         .ledger-table .desc-col { text-align: left; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+        /* --- PRINT CSS FOR MULTIPLE PAGES --- */
         @media print {
-            @page { size: 13in 8.5in; margin: 0.5in; }
-            body { background: none; padding: 0; margin: 0; }
-            .print-toolbar { display: none !important; }
-            .paper-preview { margin: 0; padding: 0; box-shadow: none; width: 100%; height: 100%; }
+            @page { 
+                size: 13in 8.5in; 
+                margin: 0; /* THIS REMOVES THE BROWSER URL, DATE, AND PAGE NUMBERS */
+            }
+            body { 
+                background: none; 
+                padding: 0; 
+                margin: 0; 
+            }
+            .print-toolbar { 
+                display: none !important; 
+            }
+            .paper-preview { 
+                margin: 0; 
+                padding: 0.4in 0.5in; /* Replaces the @page margin so content doesn't hit the paper edge */
+                box-shadow: none; 
+                width: 13in; 
+                height: 8.5in; /* Hard limits the height to exactly one page to stop spillover */
+                box-sizing: border-box;
+                page-break-after: always; 
+                page-break-inside: avoid;
+            }
+            /* Prevents a blank white page at the very end of the print job */
+            .paper-preview:last-of-type {
+                page-break-after: auto;
+            }
         }
     </style>
 </head>
@@ -56,14 +79,16 @@
         
         <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
         
-        {{-- Excel Export Button --}}
+        {{-- Excel Export Button (Exports the currently clicked ID) --}}
         <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}" class="btn-action" style="background-color: #107c41; color: white;">
             <i class="bi bi-file-earmark-excel"></i> Excel
         </a>
         
-        <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print</button>
+        <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print All Pages</button>
     </div>
     
+    {{-- LOOP THROUGH EVERY MATCHING SUPPLIER & CREATE A PAGE --}}
+    @foreach($cardsData as $card)
     <div class="paper-preview">
         
         <div class="form-header">
@@ -85,41 +110,39 @@
             </tr>
             <tr>
                 <td class="meta-label">ITEM:</td>
-                <td class="meta-value" style="width: 30%;">{{ $item->name }}</td>
+                <td class="meta-value" style="width: 30%;">{{ $card['item']->name }}</td>
                 <td class="meta-label">DESCRIPTION:</td>
-                <td class="meta-value" style="width: 35%;">{{ $item->description }}</td>
+                <td class="meta-value" style="width: 35%;">{{ $card['item']->description }}</td>
                 <td class="meta-label">LOCATION:</td>
                 <td class="meta-value text-center" style="width: 15%;"></td>
             </tr>
             <tr>
                 <td class="meta-label">STOCK NO.</td>
-                <td class="meta-value text-center">{{ $item->id }}</td>
+                <td class="meta-value text-center">{{ $card['item']->id }}</td>
                 <td class="meta-label">UNIT:</td>
-                <td class="meta-value">{{ $item->unit }}</td>
+                <td class="meta-value">{{ $card['item']->unit }}</td>
                 <td class="meta-label">REORDER POINT:</td>
-                <td class="meta-value text-center">{{ $item->reorder_level }}</td>
+                <td class="meta-value text-center">{{ $card['item']->reorder_level }}</td>
             </tr>
-            {{-- Added RIS, Supplier, and Unit Price Row --}}
             <tr>
                 <td class="meta-label">RIS NUMBER:</td>
-                <td class="meta-value text-center">{{ $item->ris_number }}</td>
+                <td class="meta-value text-center">{{ $card['item']->ris_number ?: 'N/A' }}</td>
                 <td class="meta-label">SUPPLIER:</td>
-                <td class="meta-value">{{ $item->supplier }}</td>
+                <td class="meta-value">{{ $card['item']->supplier ?: 'N/A' }}</td>
                 <td class="meta-label">UNIT PRICE:</td>
-                <td class="meta-value text-center">{{ $item->unit_price ? '₱ ' . number_format($item->unit_price, 2) : '' }}</td>
+                <td class="meta-value text-center">{{ $card['item']->unit_price ? '₱ ' . number_format($card['item']->unit_price, 2) : '' }}</td>
             </tr>
-            {{-- NEW: Added Delivery Date, Expiry Date, and Category Row --}}
             <tr>
                 <td class="meta-label">DATE DELIVERED:</td>
                 <td class="meta-value text-center">
-                    {{ $item->date_delivered ? \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') : 'N/A' }}
+                    {{ $card['item']->date_delivered ? \Carbon\Carbon::parse($card['item']->date_delivered)->format('M d, Y') : 'N/A' }}
                 </td>
                 <td class="meta-label">EXPIRY DATE:</td>
                 <td class="meta-value">
-                    {{ $item->expiry_date ? \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') : 'N/A' }}
+                    {{ $card['item']->expiry_date ? \Carbon\Carbon::parse($card['item']->expiry_date)->format('M d, Y') : 'N/A' }}
                 </td>
                 <td class="meta-label">CATEGORY:</td>
-                <td class="meta-value text-center">{{ $item->category ?? 'N/A' }}</td>
+                <td class="meta-value text-center">{{ $card['item']->category ?? 'N/A' }}</td>
             </tr>
         </table>
 
@@ -153,12 +176,12 @@
                     <td></td><td></td><td></td>
                     
                     {{-- Balance (Qty, Unit Cost, Total Cost) --}}
-                    <td style="font-weight: bold; font-size: 11px;">{{ $balance_forwarded }}</td>
-                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
-                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $balance_forwarded, 2) : '' }}</td>
+                    <td style="font-weight: bold; font-size: 11px;">{{ $card['balance_forwarded'] }}</td>
+                    <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $card['balance_forwarded'], 2) : '' }}</td>
                 </tr>
 
-                @foreach ($releases->reverse() as $release)
+                @foreach ($card['releases'] as $release)
                 <tr>
                     <td>{{ \Carbon\Carbon::parse($release->created_at)->format('m/d/Y') }}</td>
                     <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>
@@ -169,20 +192,20 @@
                     
                     {{-- Issued (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold;">{{ $release->quantity }}</td>
-                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
-                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $release->quantity, 2) : '' }}</td>
+                    <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $release->quantity, 2) : '' }}</td>
                     
                     {{-- Balance (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold; font-size: 11px;">{{ $release->running_balance }}</td>
-                    <td>{{ $item->unit_price ? number_format($item->unit_price, 2) : '' }}</td>
-                    <td style="font-weight: bold;">{{ $item->unit_price ? number_format($item->unit_price * $release->running_balance, 2) : '' }}</td>
+                    <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
+                    <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $release->running_balance, 2) : '' }}</td>
                 </tr>
                 @endforeach
 
                 {{-- Filler Rows to push layout to bottom of card --}}
                 @php
                     $min_rows = 13;
-                    $current_rows = count($releases) + 1;
+                    $current_rows = count($card['releases']) + 1;
                     $filler = $min_rows - $current_rows;
                 @endphp
                 
@@ -198,6 +221,7 @@
         </table>
 
     </div>
+    @endforeach
 
 </body>
 </html>

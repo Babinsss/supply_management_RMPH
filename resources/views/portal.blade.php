@@ -12,9 +12,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
-    {{-- Select2 CSS --}}
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; color: #0f172a; }
         .checkout-container { max-width: 1000px; margin: 3rem auto; }
@@ -29,36 +26,6 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        /* FIXED: Select2 Custom Styling to match your theme */
-        .select2-container--default .select2-selection--single { 
-            height: 48px; 
-            border-radius: 1rem; 
-            border: 2px solid #e2e8f0; 
-            background-color: #f8fafc; 
-            font-weight: 500; 
-        }
-        .select2-container--default.select2-container--focus .select2-selection--single { 
-            background-color: #fff; 
-            border-color: #3b82f6; 
-            box-shadow: 0 4px 15px rgba(59,130,246,0.1); 
-        }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { 
-            line-height: 44px; /* Centers text vertically */
-            padding-left: 1rem; 
-            padding-right: 2.5rem; /* Adds padding so text doesn't hit the arrow */
-            color: #0f172a;
-        }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { 
-            height: 46px; 
-            right: 10px; 
-        }
-        .select2-container--default .select2-selection--single .select2-selection__clear {
-            height: 46px;
-            line-height: 46px;
-            margin-right: 15px;
-            color: #ef4444; /* Makes the clear X button slightly red */
-        }
         
         @media (min-width: 992px) {
             .sticky-layout { position: sticky; top: 2rem; }
@@ -83,7 +50,6 @@
                 <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i> 
                 <h5 class="fw-bold text-success mb-3">{{ session('success') }}</h5>
                 
-                {{-- Only show print button if batch_id is flashed to session --}}
                 @if(session('batch_id'))
                     <button type="button" class="btn btn-primary btn-modern shadow-sm px-4" onclick="printDirectly('/print-bulk/{{ session('batch_id') }}')">
                         <i class="bi bi-printer-fill me-2"></i> Print Requisition Slip (RIS)
@@ -101,12 +67,12 @@
                 {{-- Form & Selection Logic --}}
                 <div class="col-lg-7">
                     <div class="bento-card h-100">
-                        <div class="row g-4 mb-5">
+                        <div class="row g-4 mb-4">
                             
                             {{-- Department Dropdown --}}
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase tracking-wide">Department</label>
-                                <select class="input-modern" name="department_name" id="departmentSelect" required onchange="updateRequestor()">
+                                <select class="form-select input-modern" name="department_name" id="departmentSelect" required onchange="updateRequestor()">
                                     <option value="" disabled selected>Select Department...</option>
                                     
                                     {{-- Administrative Departments --}}
@@ -165,26 +131,30 @@
                             </div>
                         </div>
 
+                        {{-- NEW: Category & Item Selection Box --}}
                         <div class="p-4 bg-light rounded-4 mb-5 border border-white border-4 shadow-sm">
                             <label class="form-label text-muted small fw-bold text-uppercase tracking-wide mb-3"><i class="bi bi-cart-plus me-2"></i>Build Your Request</label>
                             
-                            {{-- FIXED: Added alignment and wrapper to prevent overlaps --}}
-                            <div class="d-flex align-items-center gap-2 mb-4">
-                                {{-- Supply Selection Dropdown --}}
+                            {{-- Step 1: Category Selection --}}
+                            <div class="mb-3">
+                                <select id="categorySelect" class="form-select input-modern" onchange="filterItemsByCategory()">
+                                    <option value="" disabled selected>1. Select a Category...</option>
+                                    @php
+                                        // Pluck unique categories directly from the database objects and sort them
+                                        $categories = collect($supplies)->pluck('category')->filter()->unique()->sort();
+                                    @endphp
+                                    @foreach($categories as $category)
+                                        <option value="{{ $category }}">{{ $category }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            {{-- Step 2: Item Selection (Hidden until Category is chosen) --}}
+                            <div id="itemSelectionRow" class="align-items-center gap-2 mb-4" style="display: none;">
                                 <div class="flex-grow-1" style="min-width: 0;">
-                                    <select id="supplySelect" style="width: 100%;">
-                                        <option value="" disabled selected>Search inventory items...</option>
-                                        @foreach($supplies as $item)
-                                            @if($item->quantity > 0)
-                                                <option value="{{ $item->id }}" data-name="{{ $item->name }} {{ $item->description ? '('.$item->description.')' : '' }}" data-max="{{ $item->quantity }}">
-                                                    {{ $item->name }} {{ $item->description ? '- ' . $item->description : '' }} (In Stock: {{ $item->quantity }})
-                                                </option>
-                                            @else
-                                                <option disabled class="text-danger fw-bold">
-                                                    [OUT OF STOCK] {{ $item->name }} {{ $item->description ? '- ' . $item->description : '' }}
-                                                </option>
-                                            @endif
-                                        @endforeach
+                                    <select id="supplySelect" class="form-select input-modern" style="width: 100%;">
+                                        <option value="" disabled selected>2. Select an Item...</option>
+                                        {{-- Options are injected dynamically via JavaScript below --}}
                                     </select>
                                 </div>
                                 <input type="number" id="qtyInput" class="input-modern text-center" style="width: 100px;" value="1" min="1">
@@ -250,23 +220,57 @@
 
     </div>
 
-    {{-- jQuery & Select2 JS --}}
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
+    {{-- Script Section --}}
     <script>
-        // Initialize Select2 Search
-        $(document).ready(function() {
-            $('#supplySelect').select2({
-                placeholder: "Search inventory items..."
-            });
-        });
+        // Store all supplies in a Javascript array so we can filter them instantly
+        const allSupplies = @json($supplies);
 
         // Auto-fill Requestor Function
         function updateRequestor() {
             let select = document.getElementById('departmentSelect');
             let headName = select.options[select.selectedIndex].getAttribute('data-head');
             document.getElementById('requestedByInput').value = headName || '';
+        }
+
+        // Filters the Item dropdown based on the selected Category
+        function filterItemsByCategory() {
+            const selectedCategory = document.getElementById('categorySelect').value;
+            const itemRow = document.getElementById('itemSelectionRow');
+            const supplySelect = document.getElementById('supplySelect');
+
+            // Reset Item Dropdown
+            supplySelect.innerHTML = '<option value="" disabled selected>2. Select an Item...</option>';
+
+            // Find supplies that match the chosen category
+            const filteredSupplies = allSupplies.filter(item => item.category === selectedCategory);
+
+            // Populate the Item Dropdown
+            filteredSupplies.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+
+                let nameDisplay = item.name;
+                if(item.description) {
+                    nameDisplay += ' - ' + item.description;
+                }
+
+                // Store data directly on the option for the Cart function to read
+                opt.dataset.name = nameDisplay;
+                opt.dataset.max = item.quantity;
+
+                if(item.quantity > 0) {
+                    opt.textContent = `${nameDisplay} (In Stock: ${item.quantity})`;
+                } else {
+                    opt.disabled = true;
+                    opt.className = "text-danger fw-bold";
+                    opt.textContent = `[OUT OF STOCK] ${nameDisplay}`;
+                }
+
+                supplySelect.appendChild(opt);
+            });
+
+            // Reveal the Item Dropdown row (using flex to maintain layout)
+            itemRow.style.setProperty('display', 'flex', 'important');
         }
 
         // Print Iframe logic for the success screen
@@ -281,6 +285,7 @@
             printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
         }
 
+        // Core Cart Logic
         let cart = [];
         
         function addItem() {
@@ -300,13 +305,16 @@
                 return;
             }
 
-            if(existing) existing.qty = parseInt(existing.qty) + parseInt(qty);
-            else cart.push({id: sel.value, name: itemName, qty: parseInt(qty)});
+            if(existing) {
+                existing.qty = parseInt(existing.qty) + parseInt(qty);
+            } else {
+                cart.push({id: sel.value, name: itemName, qty: parseInt(qty)});
+            }
             
             updateUI();
             
-            // Reset Select2 properly after adding
-            $('#supplySelect').val(null).trigger('change');
+            // Reset the item selection to default after adding
+            sel.value = "";
             document.getElementById('qtyInput').value = '1';
         }
 
@@ -346,7 +354,10 @@
         }
 
         function validateCart() {
-            if(cart.length === 0) { alert("Please add at least one item."); return false; }
+            if(cart.length === 0) { 
+                alert("Please add at least one item."); 
+                return false; 
+            }
             return true;
         }
     </script>
