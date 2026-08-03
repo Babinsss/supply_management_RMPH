@@ -185,8 +185,22 @@ class SupplyController extends Controller
 
     public function departmentPortal()
     {
-        $supplies = Supply::orderBy('name', 'asc')->get();
-        return view('portal', ['supplies' => $supplies]);
+        // 1. Fetch only visible supplies
+        $supplies = Supply::where('is_visible', true)->orderBy('name', 'asc')->get();
+        
+        // 2. Fetch active departments, sorted by their group
+        $departments = \App\Models\Department::where('is_active', true)
+                        ->orderBy('group_name')
+                        ->orderBy('name')
+                        ->get();
+                        
+        // 3. Fetch active categories
+        $categories = \App\Models\Category::where('is_active', true)
+                        ->orderBy('name')
+                        ->get();
+        
+        // 4. Pass all three to the portal view
+        return view('portal', compact('supplies', 'departments', 'categories'));
     }
 
     public function submitRequest(Request $request)
@@ -476,5 +490,13 @@ class SupplyController extends Controller
         return view('stockcard', compact(
             'item', 'cardsData', 'month_filter', 'current_month_label', 'available_months'
         ));
+    }
+    public function toggleVisibility($id)
+    {
+        $item = Supply::findOrFail($id);
+        $item->is_visible = !$item->is_visible; // Flips it from true to false, or false to true
+        $item->save();
+
+        return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
     }
 }

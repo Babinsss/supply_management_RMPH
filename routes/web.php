@@ -41,6 +41,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     // Inventory and Export Operations
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
+    Route::post('/inventory/toggle-visibility/{id}', [SupplyController::class, 'toggleVisibility']); // <-- NEW ROUTE
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 
@@ -57,6 +58,27 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 Route::middleware(['auth', 'role:approver'])->group(function () {
     Route::get('/approver/dashboard', [SupplyController::class, 'approverDashboard']);
     Route::get('/approver/inventory', [SupplyController::class, 'approverInventory']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPERADMIN ROUTES (System Management)
+|--------------------------------------------------------------------------
+| Locked behind 'superadmin' role. Ultimate system control and user management.
+*/
+Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(function () {
+    // User Management
+    Route::get('/users', [App\Http\Controllers\SuperAdminController::class, 'userManagement'])->name('superadmin.users');
+    Route::post('/users/update-role/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateRole']);
+    Route::post('/users/reset-password/{id}', [App\Http\Controllers\SuperAdminController::class, 'resetPassword']);
+    Route::get('/users/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteUser']);
+    Route::get('/logs', [App\Http\Controllers\SuperAdminController::class, 'activityLogs'])->name('superadmin.logs');
+    // Master Data (Departments & Categories)
+    Route::get('/master-data', [App\Http\Controllers\SuperAdminController::class, 'masterData'])->name('superadmin.master_data');
+    Route::post('/master-data/department', [App\Http\Controllers\SuperAdminController::class, 'addDepartment']);
+    Route::post('/master-data/category', [App\Http\Controllers\SuperAdminController::class, 'addCategory']);
+    Route::get('/master-data/department/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteDepartment']);
+    Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
 });
 
 /*

@@ -131,7 +131,7 @@
                             </div>
                         </div>
 
-                        {{-- NEW: Category & Item Selection Box --}}
+                        {{-- Category & Item Selection Box --}}
                         <div class="p-4 bg-light rounded-4 mb-5 border border-white border-4 shadow-sm">
                             <label class="form-label text-muted small fw-bold text-uppercase tracking-wide mb-3"><i class="bi bi-cart-plus me-2"></i>Build Your Request</label>
                             
@@ -153,7 +153,7 @@
                             <div id="itemSelectionRow" class="align-items-center gap-2 mb-4" style="display: none;">
                                 <div class="flex-grow-1" style="min-width: 0;">
                                     <select id="supplySelect" class="form-select input-modern" style="width: 100%;">
-                                        <option value="" disabled selected>2. Select an Item...</option>
+                                        <option value="" disabled selected>2. Select an Item Batch...</option>
                                         {{-- Options are injected dynamically via JavaScript below --}}
                                     </select>
                                 </div>
@@ -193,17 +193,30 @@
                                         <li class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-light">
                                             <div>
                                                 <div class="small fw-bold text-dark mb-1">{{ $item->name }}</div>
+                                                
                                                 @if($item->description)
-                                                    <div class="text-muted text-uppercase" style="font-size: 0.70rem; letter-spacing: 0.5px;">
+                                                    <div class="text-muted text-uppercase mb-1" style="font-size: 0.70rem; letter-spacing: 0.5px;">
                                                         {{ $item->description }}
                                                     </div>
                                                 @endif
+                                                
+                                                {{-- DISPLAY SUPPLIER AND RIS IN DIRECTORY --}}
+                                                <div class="text-muted-soft d-flex flex-column" style="font-size: 0.65rem;">
+                                                    @if($item->supplier) 
+                                                        <span><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span> 
+                                                    @endif
+                                                    @if($item->ris_number) 
+                                                        <span><i class="bi bi-hash me-1"></i>RIS: {{ $item->ris_number }}</span> 
+                                                    @endif
+                                                </div>
                                             </div>
-                                            <div>
+                                            
+                                            <div class="text-end">
                                                 @if($item->quantity > 0)
-                                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1">Available</span>
+                                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1 mb-1 d-block">Available</span>
+                                                    <span class="small fw-bold text-muted">{{ $item->quantity }} {{ $item->unit }}</span>
                                                 @else
-                                                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1">Out of Stock</span>
+                                                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1 d-block">Out of Stock</span>
                                                 @endif
                                             </div>
                                         </li>
@@ -232,34 +245,42 @@
             document.getElementById('requestedByInput').value = headName || '';
         }
 
-        // Filters the Item dropdown based on the selected Category
+        // Filters the Item dropdown based on the selected Category and includes Batch Data
         function filterItemsByCategory() {
             const selectedCategory = document.getElementById('categorySelect').value;
             const itemRow = document.getElementById('itemSelectionRow');
             const supplySelect = document.getElementById('supplySelect');
 
             // Reset Item Dropdown
-            supplySelect.innerHTML = '<option value="" disabled selected>2. Select an Item...</option>';
+            supplySelect.innerHTML = '<option value="" disabled selected>2. Select an Item Batch...</option>';
 
             // Find supplies that match the chosen category
             const filteredSupplies = allSupplies.filter(item => item.category === selectedCategory);
 
-            // Populate the Item Dropdown
+            // Populate the Item Dropdown with specific Supplier and RIS data
             filteredSupplies.forEach(item => {
                 const opt = document.createElement('option');
                 opt.value = item.id;
 
                 let nameDisplay = item.name;
                 if(item.description) {
-                    nameDisplay += ' - ' + item.description;
+                    nameDisplay += ` (${item.description})`;
                 }
+                
+                // Add Supplier and RIS metadata directly to the name display
+                let batchInfo = [];
+                if(item.supplier) batchInfo.push(`Supplier: ${item.supplier}`);
+                if(item.ris_number) batchInfo.push(`RIS: ${item.ris_number}`);
+                
+                let metadataString = batchInfo.length > 0 ? ` [${batchInfo.join(' | ')}]` : '';
+                nameDisplay += metadataString;
 
                 // Store data directly on the option for the Cart function to read
                 opt.dataset.name = nameDisplay;
                 opt.dataset.max = item.quantity;
 
                 if(item.quantity > 0) {
-                    opt.textContent = `${nameDisplay} (In Stock: ${item.quantity})`;
+                    opt.textContent = `${nameDisplay} - In Stock: ${item.quantity}`;
                 } else {
                     opt.disabled = true;
                     opt.className = "text-danger fw-bold";
@@ -269,7 +290,7 @@
                 supplySelect.appendChild(opt);
             });
 
-            // Reveal the Item Dropdown row (using flex to maintain layout)
+            // Reveal the Item Dropdown row
             itemRow.style.setProperty('display', 'flex', 'important');
         }
 
@@ -332,7 +353,7 @@
                 cart.forEach((item, index) => {
                     list.innerHTML += `
                         <div class="cart-item d-flex justify-content-between align-items-center bg-white p-3 rounded-4 shadow-sm mb-3 border">
-                            <span class="fw-bold text-dark fs-5">${item.name}</span>
+                            <span class="fw-bold text-dark fs-6" style="max-width: 70%;">${item.name}</span>
                             <div class="d-flex align-items-center gap-3">
                                 <span class="badge bg-light text-dark border px-3 py-2 fs-6 shadow-sm">Qty: ${item.qty}</span>
                                 <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick="removeItem(${index})">

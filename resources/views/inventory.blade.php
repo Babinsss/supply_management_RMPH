@@ -11,7 +11,7 @@
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
-            {{-- NEW: Monthly Report Modal Trigger --}}
+            {{-- Monthly Report Modal Trigger --}}
             <button type="button" class="btn btn-outline-secondary btn-modern bg-white text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
                 <i class="bi bi-calendar-check me-1"></i> Monthly Report
             </button>
@@ -132,13 +132,27 @@
                                 @endif
                             </td>
                             
-                            {{-- Actions (Stockcard & Edit) --}}
+                            {{-- Actions (Visibility, Stockcard, Edit & Delete) --}}
                             <td class="text-end text-nowrap">
+                                
+                                {{-- NEW: Visibility Toggle Button --}}
+                                <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-modern border shadow-sm me-1 {{ $item->is_visible ? 'btn-success text-white' : 'btn-secondary text-white' }}" title="{{ $item->is_visible ? 'Visible in Portal' : 'Hidden from Portal' }}">
+                                        <i class="bi {{ $item->is_visible ? 'bi-eye-fill' : 'bi-eye-slash-fill' }}"></i>
+                                    </button>
+                                </form>
+
                                 <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')">
                                     <i class="bi bi-printer"></i> Stockcard
                                 </button>
-                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
+                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
                                     <i class="bi bi-pencil-square"></i> Edit
+                                </button>
+                                
+                                {{-- Delete Button --}}
+                                <button class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ $item->id }}">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </td>
                         </tr>
@@ -258,7 +272,7 @@
                                 <input type="date" class="input-modern" name="expiry_date">
                             </div>
                             
-                            {{-- Category Dropdown (ICT Supplies removed) --}}
+                            {{-- Category Dropdown --}}
                             <div class="col-md-5">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
                                 <select class="form-select input-modern" name="category" required>
@@ -286,8 +300,10 @@
         </div>
     </div>
 
-    {{-- OUTSIDE ARCHITECTURE: Edit Modals Loop --}}
+    {{-- OUTSIDE ARCHITECTURE: Edit & Delete Modals Loop --}}
     @foreach($supplies as $item)
+        
+        {{-- Edit Modal --}}
         <div class="modal fade text-start" id="editModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content bento-card p-2 border-0">
@@ -336,7 +352,7 @@
                                     <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
                                 </div>
                                 
-                                {{-- Edit Category Dropdown (ICT Supplies removed) --}}
+                                {{-- Edit Category Dropdown --}}
                                 <div class="col-md-5">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
                                     <select class="form-select input-modern" name="category" required>
@@ -362,6 +378,30 @@
                 </div>
             </div>
         </div>
+
+        {{-- NEW: Delete Confirmation Modal (FIXED: Switched to GET link) --}}
+        <div class="modal fade" id="deleteModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bento-card p-3 border-0">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="fw-bolder text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirm Deletion</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <p class="mb-0 text-dark">Are you sure you want to permanently delete <strong>{{ $item->name }}</strong>?</p>
+                        <p class="small text-muted mt-2 mb-0">This will remove it from the inventory directory. This action cannot be undone.</p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                        {{-- FIXED: Changed form to anchor link --}}
+                        <a href="/delete/{{ $item->id }}" class="btn btn-danger btn-modern shadow-sm">
+                            <i class="bi bi-trash-fill me-1"></i> Delete Item
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
     @endforeach
 
     {{-- Javascript for Filters, Pagination, & Printing --}}
