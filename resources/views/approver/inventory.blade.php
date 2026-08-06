@@ -41,6 +41,7 @@
                         <th>Item & Details</th>
                         <th>Current Stock</th>
                         <th>RIS Number</th>
+                        <th>Date Added</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -123,6 +124,16 @@
                                     <span class="text-muted-soft small fst-italic">Without RIS</span>
                                 @endif
                             </td>
+
+                            {{-- Date Added Column --}}
+                            <td>
+                                <div class="fw-bold text-dark" style="font-size: 0.85rem;">
+                                    {{ $item->created_at->format('M d, Y') }}
+                                </div>
+                                <div class="text-muted small">
+                                    {{ $item->created_at->format('h:i A') }}
+                                </div>
+                            </td>
                             
                             {{-- Actions (Stockcard ONLY for Approver) --}}
                             <td class="text-end text-nowrap">
@@ -132,7 +143,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center py-5 text-muted-soft fw-medium">No inventory items found.</td></tr>
+                        <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No inventory items found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
