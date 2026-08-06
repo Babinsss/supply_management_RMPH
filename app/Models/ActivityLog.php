@@ -9,22 +9,21 @@ class ActivityLog extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'action', 'details', 'ip_address'];
+    protected $fillable = ['user_id', 'action_type', 'description'];
 
-    // Relationship to see WHICH user did the action
+    // Relationship: A log belongs to the user who performed the action
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // MAGIC HELPER: Call this anywhere in your controllers to log an action!
-    public static function log($action, $details)
+    // Helper function to easily create logs from anywhere in your controllers
+    public static function log($action_type, $description)
     {
         self::create([
-            'user_id' => auth()->check() ? auth()->id() : null,
-            'action' => $action,
-            'details' => $details,
-            'ip_address' => request()->ip(),
+            'user_id' => auth()->id(), // Gets the currently logged-in user's ID
+            'action_type' => $action_type,
+            'description' => $description,
         ]);
     }
 }

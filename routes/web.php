@@ -8,10 +8,8 @@ use Illuminate\Support\Facades\Auth;
 |--------------------------------------------------------------------------
 | SHARED ROUTES (Accessible by BOTH Admin and Approver)
 |--------------------------------------------------------------------------
-| Locked behind basic 'auth' middleware so only logged-in users can access.
 */
 Route::middleware(['auth'])->group(function () {
-    // Both ICT Admin and QMO Approver need to print stockcards
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
 });
 
@@ -19,33 +17,26 @@ Route::middleware(['auth'])->group(function () {
 |--------------------------------------------------------------------------
 | ICT SECTION (ADMIN) ROUTES
 |--------------------------------------------------------------------------
-| Locked behind 'admin' role middleware. Only ICT can issue and edit.
 */
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    
-    // Dashboard & Item Operations
     Route::get('/', [SupplyController::class, 'index']);
     Route::get('/dashboard', [SupplyController::class, 'dashboard'])->name('dashboard');
     Route::post('/add', [SupplyController::class, 'addItem']);
     Route::post('/update/{id}', [SupplyController::class, 'updateStock']);
     Route::get('/delete/{id}', [SupplyController::class, 'deleteItem']);
 
-    // Processing Batches
     Route::post('/process-batch/{batch_id}/approve', [SupplyController::class, 'approveBatch']);
     Route::get('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
 
-    // Printing Actions
     Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
 
-    // Inventory and Export Operations
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
-    Route::post('/inventory/toggle-visibility/{id}', [SupplyController::class, 'toggleVisibility']); // <-- NEW ROUTE
+    Route::post('/inventory/toggle-visibility/{id}', [SupplyController::class, 'toggleVisibility']);
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 
-    // Real-Time Poller API
     Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
 });
 
@@ -53,7 +44,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 |--------------------------------------------------------------------------
 | QMO APPROVER ROUTES
 |--------------------------------------------------------------------------
-| Locked behind 'approver' role middleware. Read/Monitor only.
 */
 Route::middleware(['auth', 'role:approver'])->group(function () {
     Route::get('/approver/dashboard', [SupplyController::class, 'approverDashboard']);
@@ -64,18 +54,19 @@ Route::middleware(['auth', 'role:approver'])->group(function () {
 |--------------------------------------------------------------------------
 | SUPERADMIN ROUTES (System Management)
 |--------------------------------------------------------------------------
-| Locked behind 'superadmin' role. Ultimate system control and user management.
 */
 Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(function () {
     // User Management
     Route::get('/users', [App\Http\Controllers\SuperAdminController::class, 'userManagement'])->name('superadmin.users');
-    Route::post('/users/update-role/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateRole']);
-    Route::post('/users/reset-password/{id}', [App\Http\Controllers\SuperAdminController::class, 'resetPassword']);
+    Route::post('/users/add', [App\Http\Controllers\SuperAdminController::class, 'storeUser']);
+    Route::post('/users/update/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateUser']);
     Route::get('/users/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteUser']);
     Route::get('/logs', [App\Http\Controllers\SuperAdminController::class, 'activityLogs'])->name('superadmin.logs');
+    
     // Master Data (Departments & Categories)
     Route::get('/master-data', [App\Http\Controllers\SuperAdminController::class, 'masterData'])->name('superadmin.master_data');
     Route::post('/master-data/department', [App\Http\Controllers\SuperAdminController::class, 'addDepartment']);
+    Route::post('/master-data/department/update/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateDepartment']);
     Route::post('/master-data/category', [App\Http\Controllers\SuperAdminController::class, 'addCategory']);
     Route::get('/master-data/department/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteDepartment']);
     Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
@@ -85,12 +76,10 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
 |--------------------------------------------------------------------------
 | DEPARTMENT FRONT-FACING PORTAL
 |--------------------------------------------------------------------------
-| Accessible to hospital staff to submit their requisition carts.
 */
 Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('portal');
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
 
-// Laravel's built-in Authentication Routes
 Auth::routes();
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

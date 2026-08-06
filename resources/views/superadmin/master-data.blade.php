@@ -1,12 +1,10 @@
-<x-layouts.admin title="Master Data | Superadmin Control">
+<x-layouts.admin title="Master Data Management | Superadmin">
 
     <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark">
             <i class="bi bi-database-fill-gear text-primary me-2"></i> Master Data Management
         </h5>
-        <div class="text-muted small d-none d-md-block">
-            <i class="bi bi-info-circle me-1"></i> Manage dropdowns and system variables dynamically.
-        </div>
+        <p class="text-muted small mb-0 d-none d-md-block">Manage dropdowns and system variables.</p>
     </div>
 
     @if(session('success'))
@@ -16,50 +14,85 @@
         </div>
     @endif
 
-    <div class="row g-4 mb-5">
+    <div class="row g-4">
         
-        {{-- ========================================== --}}
-        {{-- DEPARTMENTS SECTION --}}
-        {{-- ========================================== --}}
-        <div class="col-lg-7">
+        {{-- DEPARTMENTS MANAGEMENT COLUMN --}}
+        <div class="col-lg-8">
             <div class="bento-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-building me-2 text-primary"></i>Hospital Departments</h6>
-                    <button class="btn btn-sm btn-primary btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-diagram-3-fill text-primary me-2"></i>Hospital Departments</h6>
+                    <button class="btn btn-sm btn-primary btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#addDeptModal">
                         <i class="bi bi-plus-lg me-1"></i> Add Dept
                     </button>
                 </div>
                 
-                <div class="table-responsive">
-                    <table class="table table-clean mb-0">
-                        <thead>
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-clean align-middle mb-0">
+                        <thead class="sticky-top bg-white" style="z-index: 1;">
                             <tr>
-                                <th>Group</th>
-                                <th>Department Details</th>
-                                <th class="text-end">Action</th>
+                                <th>Group / Division</th>
+                                <th>Department Name</th>
+                                <th>Head / Personnel</th>
+                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($departments as $dept)
                                 <tr>
-                                    <td>
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-2 py-1" style="font-size: 0.70rem;">
-                                            {{ $dept->group_name }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="fw-bold text-dark fs-6">{{ $dept->name }}</div>
-                                        <div class="text-muted small"><i class="bi bi-person-badge me-1"></i>Head: {{ $dept->head_name }}</div>
-                                    </td>
-                                    <td class="text-end align-middle">
-                                        <a href="/superadmin/master-data/department/delete/{{ $dept->id }}" class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" onclick="return confirm('Are you sure you want to delete this department?');">
+                                    <td class="text-muted small fw-bold text-uppercase">{{ $dept->group_name }}</td>
+                                    <td class="fw-bold text-dark">{{ $dept->name }}</td>
+                                    <td>{{ $dept->head_name }}</td>
+                                    <td class="text-end text-nowrap">
+                                        {{-- Edit Button --}}
+                                        <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editDeptModal{{ $dept->id }}">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        
+                                        {{-- Delete Button --}}
+                                        <a href="/superadmin/master-data/department/delete/{{ $dept->id }}" class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" onclick="return confirm('Are you sure you want to delete {{ $dept->name }}? This might affect existing supply records.');">
                                             <i class="bi bi-trash-fill"></i>
                                         </a>
                                     </td>
                                 </tr>
+
+                                {{-- EDIT DEPARTMENT MODAL --}}
+                                <div class="modal fade" id="editDeptModal{{ $dept->id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content bento-card p-2 border-0">
+                                            <form action="/superadmin/master-data/department/update/{{ $dept->id }}" method="POST">
+                                                @csrf
+                                                <div class="modal-header border-0 pb-0">
+                                                    <h5 class="fw-bolder text-dark">Edit Department</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-muted small fw-bold text-uppercase">Group / Division</label>
+                                                        <select class="form-select input-modern" name="group_name" required>
+                                                            <option value="Administrative Department" {{ $dept->group_name == 'Administrative Department' ? 'selected' : '' }}>Administrative Department</option>
+                                                            <option value="Wards / Ancillary Units" {{ $dept->group_name == 'Wards / Ancillary Units' ? 'selected' : '' }}>Wards / Ancillary Units</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label text-muted small fw-bold text-uppercase">Department Name</label>
+                                                        <input type="text" class="form-control input-modern" name="name" value="{{ $dept->name }}" required>
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label class="form-label text-muted small fw-bold text-uppercase">Department Head</label>
+                                                        <input type="text" class="form-control input-modern" name="head_name" value="{{ $dept->head_name }}" required>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer border-0 pt-0">
+                                                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-primary btn-modern shadow-sm">Save Changes</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
                             @empty
                                 <tr>
-                                    <td colspan="3" class="text-center py-4 text-muted-soft fw-medium">No departments configured yet.</td>
+                                    <td colspan="4" class="text-center py-4 text-muted">No departments found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -68,39 +101,37 @@
             </div>
         </div>
 
-        {{-- ========================================== --}}
-        {{-- CATEGORIES SECTION --}}
-        {{-- ========================================== --}}
-        <div class="col-lg-5">
+        {{-- CATEGORIES MANAGEMENT COLUMN (Bonus) --}}
+        <div class="col-lg-4">
             <div class="bento-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-tags-fill me-2 text-primary"></i>Supply Categories</h6>
+                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-tags-fill text-primary me-2"></i>Categories</h6>
                     <button class="btn btn-sm btn-primary btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Category
+                        <i class="bi bi-plus-lg"></i>
                     </button>
                 </div>
                 
-                <div class="table-responsive">
-                    <table class="table table-clean mb-0">
-                        <thead>
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-clean align-middle mb-0">
+                        <thead class="sticky-top bg-white">
                             <tr>
                                 <th>Category Name</th>
                                 <th class="text-end">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($categories as $category)
+                            @forelse($categories as $cat)
                                 <tr>
-                                    <td class="fw-bold text-dark align-middle">{{ $category->name }}</td>
-                                    <td class="text-end align-middle">
-                                        <a href="/superadmin/master-data/category/delete/{{ $category->id }}" class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" onclick="return confirm('Are you sure you want to delete this category?');">
+                                    <td class="fw-bold text-dark">{{ $cat->name }}</td>
+                                    <td class="text-end">
+                                        <a href="/superadmin/master-data/category/delete/{{ $cat->id }}" class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" onclick="return confirm('Delete category {{ $cat->name }}?');">
                                             <i class="bi bi-trash-fill"></i>
                                         </a>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="2" class="text-center py-4 text-muted-soft fw-medium">No categories configured yet.</td>
+                                    <td colspan="2" class="text-center py-4 text-muted">No categories found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -111,12 +142,8 @@
 
     </div>
 
-    {{-- ========================================== --}}
-    {{-- MODALS FOR ADDING DATA --}}
-    {{-- ========================================== --}}
-
-    {{-- Add Department Modal --}}
-    <div class="modal fade" id="addDepartmentModal" tabindex="-1" aria-hidden="true">
+    {{-- ADD DEPARTMENT MODAL --}}
+    <div class="modal fade" id="addDeptModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-2 border-0">
                 <form action="/superadmin/master-data/department" method="POST">
@@ -128,16 +155,21 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold text-uppercase">Group / Division</label>
-                            <input type="text" class="input-modern" name="group_name" placeholder="e.g. Wards, Administrative..." required>
+                            <select class="form-select input-modern" name="group_name" required>
+                                <option value="" disabled selected>Select Group...</option>
+                                <option value="Administrative Department">Administrative Department</option>
+                                <option value="Wards / Ancillary Units">Wards / Ancillary Units</option>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold text-uppercase">Department Name</label>
-                            <input type="text" class="input-modern" name="name" placeholder="e.g. ICT Section, OB Ward..." required>
+                            <input type="text" class="form-control input-modern" name="name" placeholder="e.g. Outpatient Department" required>
                         </div>
                         <div class="mb-2">
                             <label class="form-label text-muted small fw-bold text-uppercase">Department Head</label>
-                            <input type="text" class="input-modern" name="head_name" placeholder="e.g. DR. JOHN DOE" required>
+                            <input type="text" class="form-control input-modern" name="head_name" placeholder="e.g. DR. JUAN DELA CRUZ" required>
                         </div>
+                        <input type="hidden" name="is_active" value="1">
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
@@ -148,21 +180,22 @@
         </div>
     </div>
 
-    {{-- Add Category Modal --}}
+    {{-- ADD CATEGORY MODAL --}}
     <div class="modal fade" id="addCategoryModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-2 border-0">
                 <form action="/superadmin/master-data/category" method="POST">
                     @csrf
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-dark">Add Supply Category</h5>
+                        <h5 class="fw-bolder text-dark">Add New Category</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-2">
                             <label class="form-label text-muted small fw-bold text-uppercase">Category Name</label>
-                            <input type="text" class="input-modern text-uppercase" name="name" placeholder="e.g. IT EQUIPMENT" required>
+                            <input type="text" class="form-control input-modern" name="name" placeholder="e.g. Medical Supplies" required>
                         </div>
+                        <input type="hidden" name="is_active" value="1">
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>

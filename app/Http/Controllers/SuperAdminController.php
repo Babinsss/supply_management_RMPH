@@ -4,95 +4,137 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\ActivityLog;
+use App\Models\Department;
+use App\Models\Category;
 use Illuminate\Support\Facades\Hash;
 
 class SuperAdminController extends Controller
 {
+    // ==========================================
+    // USER MANAGEMENT
+    // ==========================================
     public function userManagement()
     {
-        // Fetch all users except the currently logged-in superadmin (to prevent self-lockout)
-        $users = User::where('id', '!=', auth()->id())->orderBy('name', 'asc')->get();
-        
+        $users = User::orderBy('name')->get();
         return view('superadmin.users', compact('users'));
     }
 
-    public function updateRole(Request $request, $id)
+    public function storeUser(Request $request)
     {
-        $user = User::findOrFail($id);
-        
         $request->validate([
-            'role' => 'required|in:user,admin,approver,superadmin'
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:6',
+            'role' => 'required'
         ]);
 
-        $user->role = $request->role;
-        $user->save();
+        User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => $request->role,
+        ]);
 
-        return redirect()->back()->with('success', "Role updated successfully for {$user->name}.");
+        // Log the creation
+        ActivityLog::log('User Management', "Created new user: {$request->name}");
+
+        return redirect()->back()->with('success', 'User added successfully!');
     }
 
-    public function resetPassword(Request $request, $id)
+    public function updateUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
         
-        // Default reset password for hospital staff
-        $defaultPassword = 'rmph' . date('Y'); // e.g., rmph2026
+        $user->name = $request->name;
+        $user->email = $request->email;
+        $user->role = $request->role;
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
         
-        $user->password = Hash::make($defaultPassword);
         $user->save();
 
-        return redirect()->back()->with('success', "Password for {$user->name} has been reset to: {$defaultPassword}");
+        // Log the update
+        ActivityLog::log('User Management', "Updated user details for: {$user->name}");
+
+        return redirect()->back()->with('success', 'User updated successfully!');
     }
 
     public function deleteUser($id)
     {
         $user = User::findOrFail($id);
+        if (auth()->id() == $id) {
+            return redirect()->back()->with('error', 'You cannot delete your own account.');
+        }
+        
+        $userName = $user->name; // Save name for the log before deleting
         $user->delete();
 
-        return redirect()->back()->with('success', 'User account permanently deleted.');
+        // Log the deletion
+        ActivityLog::log('User Management', "Deleted user: {$userName}");
+
+        return redirect()->back()->with('success', 'User deleted.');
     }
+
+    // ==========================================
+    // ACTIVITY LOGS
+    // ==========================================
     public function activityLogs()
     {
-        // Fetch logs, latest first, and include the user data
-        $logs = \App\Models\ActivityLog::with('user')->latest()->paginate(50);
-        
+        $logs = ActivityLog::with('user')->latest()->paginate(50);
         return view('superadmin.logs', compact('logs'));
     }
-    // --- MASTER DATA MANAGEMENT ---
 
+    // ==========================================
+    // MASTER DATA (Departments & Categories)
+    // ==========================================
     public function masterData()
     {
-        $departments = \App\Models\Department::orderBy('group_name')->orderBy('name')->get();
-        $categories = \App\Models\Category::orderBy('name')->get();
-        
+        $departments = Department::orderBy('group_name')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
         return view('superadmin.master-data', compact('departments', 'categories'));
     }
 
-    public function addDepartment(\Illuminate\Http\Request $request)
+    public function addDepartment(Request $request)
     {
-        \App\Models\Department::create($request->all());
-        \App\Models\ActivityLog::log('System Setting', "Added new department: {$request->name}");
+        Department::create($request->all());
+        ActivityLog::log('System Setting', "Added new department: {$request->name}");
         return redirect()->back()->with('success', 'Department added successfully!');
     }
 
-    public function addCategory(\Illuminate\Http\Request $request)
+    public function updateDepartment(Request $request, $id)
     {
-        \App\Models\Category::create($request->all());
-        \App\Models\ActivityLog::log('System Setting', "Added new category: {$request->name}");
-        return redirect()->back()->with('success', 'Category added successfully!');
+        $dept = Department::findOrFail($id);
+        $dept->update([
+            'name' => $request->name,
+            'head_name' => $request->head_name,
+            'group_name' => $request->group_name
+        ]);
+        ActivityLog::log('System Setting', "Updated department: {$dept->name}");
+        return redirect()->back()->with('success', 'Department updated successfully!');
     }
 
     public function deleteDepartment($id)
     {
-        $dept = \App\Models\Department::findOrFail($id);
-        \App\Models\ActivityLog::log('System Setting', "Deleted department: {$dept->name}");
+        $dept = Department::findOrFail($id);
+        ActivityLog::log('System Setting', "Deleted department: {$dept->name}");
         $dept->delete();
         return redirect()->back()->with('success', 'Department removed.');
     }
 
+    public function addCategory(Request $request)
+    {
+        Category::create($request->all());
+        ActivityLog::log('System Setting', "Added new category: {$request->name}");
+        return redirect()->back()->with('success', 'Category added successfully!');
+    }
+
     public function deleteCategory($id)
     {
-        $cat = \App\Models\Category::findOrFail($id);
-        \App\Models\ActivityLog::log('System Setting', "Deleted category: {$cat->name}");
+        $cat = Category::findOrFail($id);
+        ActivityLog::log('System Setting', "Deleted category: {$cat->name}");
         $cat->delete();
         return redirect()->back()->with('success', 'Category removed.');
     }

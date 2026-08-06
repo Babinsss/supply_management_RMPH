@@ -69,58 +69,27 @@
                     <div class="bento-card h-100">
                         <div class="row g-4 mb-4">
                             
-                            {{-- Department Dropdown --}}
+                            {{-- Department Dropdown (DYNAMIC DATABASE VERSION) --}}
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase tracking-wide">Department</label>
                                 <select class="form-select input-modern" name="department_name" id="departmentSelect" required onchange="updateRequestor()">
                                     <option value="" disabled selected>Select Department...</option>
                                     
-                                    {{-- Administrative Departments --}}
-                                    <optgroup label="Administrative Department">
-                                        <option value="Admitting" data-head="JULIO MEDINA">Admitting</option>
-                                        <option value="Accounting" data-head="JAHZEILE SALISTRE">Accounting</option>
-                                        <option value="Building & Maintenance" data-head="MARY JANE BALDISMO">Building & Maintenance</option>
-                                        <option value="Credit & Collection" data-head="MEMIA BUGTONG">Credit & Collection</option>
-                                        <option value="HR" data-head="FRANCES THERESE MIRANDA">Human Resources</option>
-                                        <option value="Supply" data-head="LADY ORTALEZ LUCES">Supply Section</option>
-                                        <option value="ICT" data-head="AIZA OBLIGAR">ICT</option>
-                                        <option value="Medical Records" data-head="SHERYL ABLAO">Medical Records</option>
-                                        <option value="Cashier" data-head="ROSELA FERNANDO">Cashier</option>
-                                        <option value="Billing & Claims" data-head="REGNER BRILLO">Billing & Claims</option>
-                                        <option value="Malasakit" data-head="LIZAMAE BERANO">Malasakit Center</option>
-                                        <option value="Dietary" data-head="ROBENIA DAYALO">Dietary</option>
-                                        <option value="Consignment" data-head="ALIANA MARIE DULA/KRISTINE MAE BATAN">Consignment Section</option>
-                                        <option value="Quality Management Office" data-head="JHOANNA CRUZ-AM">Quality Management Office</option>
-                                        <option value="Chief of Hospital II" data-head="DR. FLORENCIO LUCHING">Chief of Hospital II</option>
-                                        <option value="Chief of Clinics" data-head="DR. VINCENT JURY LAURON">Chief of Clinics</option>
-                                    </optgroup>
-
-                                    {{-- Wards & Ancillary Units --}}
-                                    <optgroup label="Wards / Ancillary Units">
-                                        <option value="CSR" data-head="MIA BUENVENIDA">Central Supply Room</option>
-                                        <option value="LAB" data-head="MARIJOE ARTATES">Laboratory</option>
-                                        <option value="RADIO" data-head="SOCRATES BERCADEZ">Radiology</option>
-                                        <option value="PHARMA" data-head="SHARA PATRIA SANTOS">Pharmacy</option>
-                                        <option value="CARDIO PULMONARY" data-head="SONIA FLORENCIO">Cardio Pulmonary</option>
-                                        <option value="WCPU" data-head="ANNIELEE ARIEL">WCPU</option>
-                                        <option value="IW" data-head="ANABELLE DENAGA">Institutional Workers</option>
-                                        <option value="Laundry" data-head="LENNIE TOCONG">Laundry</option>
-                                        <option value="REHAB" data-head="ANABELLE GARCIA">Rehab</option>
-                                        <option value="NSO" data-head="GLENA PIMENTEL">NSO Office</option>
-                                        <option value="ORTHO" data-head="SUSIE ARMIZA">Orthopedic Ward</option>
-                                        <option value="OB" data-head="WENDY MARTINEZ">OB Ward</option>
-                                        <option value="ER" data-head="CHRISTINE ESQUILLO">Emergency Room</option>
-                                        <option value="FMW" data-head="MARY GRACE BUARON">Female Medical Ward</option>
-                                        <option value="MMW" data-head="JOSETTH LYNANNE TAN">Male Medical Ward</option>
-                                        <option value="ICU" data-head="DREXCY JHOY SAN ANTONIO">Intensive Care Unit</option>
-                                        <option value="NICU" data-head="MAY RACILLE JOY LANTORIA">Neonatal Intensive Care Unit</option>
-                                        <option value="SURGICAL" data-head="LOUIE ANN AJERA">Surgical Ward</option>
-                                        <option value="PEDIA" data-head="EVELYN AMBROSIO">Pediatric Ward</option>
-                                        <option value="OR" data-head="JADD LOUIE UVAS">Operating Room</option>
-                                        <option value="PAYWARD" data-head="MARIA VICTORIA ESCUTIN">Pay Ward</option>
-                                        <option value="HEMO" data-head="EVANGELINE DETANOY">Hemodialysis</option>
-                                        <option value="GUGMA DIALYSIS" data-head="STEPHEN ESPENOCILLA">Gugma Dialysis</option>
-                                    </optgroup>
+                                    @php $currentGroup = ''; @endphp
+                                    
+                                    @foreach($departments as $dept)
+                                        @if($currentGroup != $dept->group_name)
+                                            @if($currentGroup != '') </optgroup> @endif
+                                            <optgroup label="{{ $dept->group_name }}">
+                                            @php $currentGroup = $dept->group_name; @endphp
+                                        @endif
+                                        
+                                        <option value="{{ $dept->name }}" data-head="{{ $dept->head_name }}">
+                                            {{ $dept->name }}
+                                        </option>
+                                    @endforeach
+                                    
+                                    @if($currentGroup != '') </optgroup> @endif
                                 </select>
                             </div>
 
@@ -140,7 +109,6 @@
                                 <select id="categorySelect" class="form-select input-modern" onchange="filterItemsByCategory()">
                                     <option value="" disabled selected>1. Select a Category...</option>
                                     @php
-                                        // Pluck unique categories directly from the database objects and sort them
                                         $categories = collect($supplies)->pluck('category')->filter()->unique()->sort();
                                     @endphp
                                     @foreach($categories as $category)
@@ -149,12 +117,11 @@
                                 </select>
                             </div>
 
-                            {{-- Step 2: Item Selection (Hidden until Category is chosen) --}}
+                            {{-- Step 2: Item Selection --}}
                             <div id="itemSelectionRow" class="align-items-center gap-2 mb-4" style="display: none;">
                                 <div class="flex-grow-1" style="min-width: 0;">
                                     <select id="supplySelect" class="form-select input-modern" style="width: 100%;">
                                         <option value="" disabled selected>2. Select an Item Batch...</option>
-                                        {{-- Options are injected dynamically via JavaScript below --}}
                                     </select>
                                 </div>
                                 <input type="number" id="qtyInput" class="input-modern text-center" style="width: 100px;" value="1" min="1">
@@ -200,7 +167,6 @@
                                                     </div>
                                                 @endif
                                                 
-                                                {{-- DISPLAY SUPPLIER AND RIS IN DIRECTORY --}}
                                                 <div class="text-muted-soft d-flex flex-column" style="font-size: 0.65rem;">
                                                     @if($item->supplier) 
                                                         <span><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span> 
@@ -235,7 +201,6 @@
 
     {{-- Script Section --}}
     <script>
-        // Store all supplies in a Javascript array so we can filter them instantly
         const allSupplies = @json($supplies);
 
         // Auto-fill Requestor Function
@@ -245,19 +210,15 @@
             document.getElementById('requestedByInput').value = headName || '';
         }
 
-        // Filters the Item dropdown based on the selected Category and includes Batch Data
         function filterItemsByCategory() {
             const selectedCategory = document.getElementById('categorySelect').value;
             const itemRow = document.getElementById('itemSelectionRow');
             const supplySelect = document.getElementById('supplySelect');
 
-            // Reset Item Dropdown
             supplySelect.innerHTML = '<option value="" disabled selected>2. Select an Item Batch...</option>';
 
-            // Find supplies that match the chosen category
             const filteredSupplies = allSupplies.filter(item => item.category === selectedCategory);
 
-            // Populate the Item Dropdown with specific Supplier and RIS data
             filteredSupplies.forEach(item => {
                 const opt = document.createElement('option');
                 opt.value = item.id;
@@ -267,7 +228,6 @@
                     nameDisplay += ` (${item.description})`;
                 }
                 
-                // Add Supplier and RIS metadata directly to the name display
                 let batchInfo = [];
                 if(item.supplier) batchInfo.push(`Supplier: ${item.supplier}`);
                 if(item.ris_number) batchInfo.push(`RIS: ${item.ris_number}`);
@@ -275,7 +235,6 @@
                 let metadataString = batchInfo.length > 0 ? ` [${batchInfo.join(' | ')}]` : '';
                 nameDisplay += metadataString;
 
-                // Store data directly on the option for the Cart function to read
                 opt.dataset.name = nameDisplay;
                 opt.dataset.max = item.quantity;
 
@@ -290,11 +249,9 @@
                 supplySelect.appendChild(opt);
             });
 
-            // Reveal the Item Dropdown row
             itemRow.style.setProperty('display', 'flex', 'important');
         }
 
-        // Print Iframe logic for the success screen
         function printDirectly(url) {
             let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
             if(!printFrame.id) {
@@ -306,7 +263,6 @@
             printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
         }
 
-        // Core Cart Logic
         let cart = [];
         
         function addItem() {
@@ -334,7 +290,6 @@
             
             updateUI();
             
-            // Reset the item selection to default after adding
             sel.value = "";
             document.getElementById('qtyInput').value = '1';
         }

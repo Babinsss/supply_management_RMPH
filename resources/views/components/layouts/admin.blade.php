@@ -40,6 +40,33 @@
                 <a href="/inventory" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-box-seam-fill me-2"></i>Inventory</a>
                 <a href="/portal" target="_blank" class="btn btn-dark btn-modern shadow-sm"><i class="bi bi-box-arrow-up-right me-2"></i>Portal</a>
                 
+                {{-- SUPERADMIN ONLY DROPDOWN --}}
+                @if(auth()->check() && auth()->user()->role === 'superadmin')
+                    <div class="dropdown">
+                        <button class="btn btn-primary btn-modern shadow-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-shield-lock-fill me-1"></i> System Control
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm rounded-4 mt-2 p-2">
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold mb-1 {{ request()->is('superadmin/users') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/users">
+                                    <i class="bi bi-people-fill me-2 {{ request()->is('superadmin/users') ? 'text-primary' : 'text-muted' }}"></i> User Management
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold mb-1 {{ request()->is('superadmin/master-data') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/master-data">
+                                    <i class="bi bi-database-fill-gear me-2 {{ request()->is('superadmin/master-data') ? 'text-primary' : 'text-muted' }}"></i> Master Data
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider my-2"></li>
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/logs') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/logs">
+                                    <i class="bi bi-journal-text me-2 {{ request()->is('superadmin/logs') ? 'text-primary' : 'text-muted' }}"></i> Activity Logs
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                @endif
+                
                 {{-- User Profile & Logout --}}
                 <div class="ms-md-3 d-flex align-items-center gap-3 border-start ps-md-3 pt-2 pt-md-0 border-secondary-subtle">
                     @auth
