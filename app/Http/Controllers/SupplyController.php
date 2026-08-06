@@ -82,7 +82,10 @@ class SupplyController extends Controller
         $validated['unit'] = $request->input('unit', 'pcs'); 
         $validated['reorder_level'] = $request->input('reorder_level', 10); 
 
-        Supply::create($validated);
+        $newItem = Supply::create($validated);
+
+        // LOG ACTION
+        \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
         return redirect()->back()->with('success', 'New item added successfully!');
     }
@@ -97,6 +100,9 @@ class SupplyController extends Controller
             $item->quantity = 0;
         }
         $item->save();
+
+        // LOG ACTION
+        \App\Models\ActivityLog::log('Inventory', "Adjusted stock for {$item->name} by {$adjustment}. New total: {$item->quantity}");
 
         return redirect()->route('dashboard')->with('success', "Stock updated successfully for {$item->name}!");
     }
@@ -118,13 +124,20 @@ class SupplyController extends Controller
         $item = Supply::findOrFail($id);
         $item->update($validated);
 
+        // LOG ACTION
+        \App\Models\ActivityLog::log('Inventory', "Updated details for item: {$item->name}");
+
         return redirect()->back()->with('success', "Item details updated successfully for {$item->name}!");
     }
 
     public function deleteItem($id)
     {
         $item = Supply::findOrFail($id);
+        $itemName = $item->name;
         $item->delete();
+
+        // LOG ACTION
+        \App\Models\ActivityLog::log('Inventory', "Deleted item from inventory: {$itemName}");
 
         return redirect()->route('dashboard')->with('success', 'Item successfully deleted.');
     }
@@ -168,6 +181,10 @@ class SupplyController extends Controller
             $req->save();
         }
 
+        // LOG ACTION
+        $departmentName = $batchReqs->first()->department_name;
+        \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
+
         return redirect()->back()->with('success', 'Bulk request approved and stock updated!');
     }
 
@@ -178,6 +195,12 @@ class SupplyController extends Controller
         foreach ($batchReqs as $req) {
             $req->status = 'Denied';
             $req->save();
+        }
+
+        // LOG ACTION
+        if ($batchReqs->isNotEmpty()) {
+            $departmentName = $batchReqs->first()->department_name;
+            \App\Models\ActivityLog::log('Supply Issuance', "Denied request {$batch_id} for {$departmentName}");
         }
 
         return redirect()->back()->with('success', 'Bulk request denied. Stock remains unchanged.');
@@ -491,11 +514,16 @@ class SupplyController extends Controller
             'item', 'cardsData', 'month_filter', 'current_month_label', 'available_months'
         ));
     }
+
     public function toggleVisibility($id)
     {
         $item = Supply::findOrFail($id);
-        $item->is_visible = !$item->is_visible; // Flips it from true to false, or false to true
+        $item->is_visible = !$item->is_visible; 
         $item->save();
+
+        // LOG ACTION
+        $status = $item->is_visible ? 'visible' : 'hidden';
+        \App\Models\ActivityLog::log('Inventory', "Toggled visibility for {$item->name} to {$status}");
 
         return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
     }

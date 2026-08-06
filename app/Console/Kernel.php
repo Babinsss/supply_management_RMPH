@@ -15,7 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Runs every night at 5:30 PM (17:30)
+        $schedule->command('db:backup')->dailyAt('17:30');
     }
 
     /**
@@ -29,4 +30,5 @@ class Kernel extends ConsoleKernel
 
         require base_path('routes/console.php');
     }
+    
 }
