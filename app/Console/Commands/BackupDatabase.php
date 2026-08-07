@@ -30,7 +30,7 @@ class BackupDatabase extends Command
         $password = env('DB_PASSWORD');
 
         // 4. Point to XAMPP's mysqldump executable
-        $mysqlDumpPath = 'C:\xampp\mysql\bin\mysqldump.exe';
+        $mysqlDumpPath = 'mysqldump';
 
         // 5. Build and execute the command
         $passwordString = $password ? "--password={$password} " : "";
