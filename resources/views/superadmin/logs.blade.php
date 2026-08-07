@@ -63,4 +63,14 @@
         </div>
     </div>
 
+    {{-- NEW: Auto-Refresh Script for Live Monitoring --}}
+    <x-slot name="scripts">
+        <script>
+            // Automatically refresh the page every 60 seconds (60000 milliseconds)
+            setTimeout(function() {
+                window.location.reload(1);
+            }, 60000);
+        </script>
+    </x-slot>
+
 </x-layouts.admin>
