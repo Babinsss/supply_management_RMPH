@@ -99,7 +99,7 @@
         <h4>ROXAS MEMORIAL PROVINCIAL HOSPITAL</h4>
         <p>Arnaldo Boulevard, Roxas City</p>
 
-        <div class="report-title">MONTHLY INVENTORY REPORT</div>
+        <div class="report-title">SUPPLY INVENTORY REPORT</div>
         
         <div class="report-date">
             {{-- Dynamic Date & Category based on Monthly Report Filter --}}

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 */
 Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
+    Route::get('/print-inventory', [SupplyController::class, 'printInventory']); // ✅ Now safely shared!
 });
 
 /*
@@ -29,7 +30,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
 
     Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
-    Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
 
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
