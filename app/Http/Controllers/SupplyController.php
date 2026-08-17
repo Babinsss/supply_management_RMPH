@@ -293,10 +293,7 @@ class SupplyController extends Controller
     public function inventory() 
     {
         $supplies = Supply::orderBy('name', 'asc')->get();
-        
-        // Fetch all categories managed by the Superadmin
-        $categories = \App\Models\Category::orderBy('name')->get();
-        
+        $categories = \App\Models\Category::orderBy('name')->get(); // <--- ADD THIS
         return view('inventory', compact('supplies', 'categories'));
     }
 
