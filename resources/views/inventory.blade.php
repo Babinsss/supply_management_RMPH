@@ -1,5 +1,5 @@
 <x-layouts.admin title="Inventory | Supply Hub">
-    {{ dd('HELLO VINCENT') }}
+    
 
     {{-- Top Action Bar with Search & Buttons --}}
     <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
