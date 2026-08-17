@@ -260,9 +260,12 @@
                                 <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
                                 <select class="form-select input-modern" name="category" required>
                                     <option value="" disabled selected>Select Category...</option>
+                                    
+                                    {{-- This loop tells the dropdown to read your Superadmin database --}}
                                     @foreach($categories as $cat)
                                         <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
                                     @endforeach
+                                    
                                 </select>
                             </div>
                             
