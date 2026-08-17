@@ -29,7 +29,7 @@
         <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('OFFICE SUPPLIES', this)">Office Supplies</button>
         <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MEDICAL SUPPLIES', this)">Medical Supplies</button>
         <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('JANITORIAL SUPPLIES', this)">Janitorial Supplies</button>
-        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MEDICAL EQUIPMENT', this)">Medical Equipment</button>
+        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MAINTENANCE EQUIPMENT', this)">Maintenance Equipment</button>
     </div>
 
     {{-- Main Inventory Table (Read-Only) --}}
