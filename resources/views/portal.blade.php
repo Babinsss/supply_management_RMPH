@@ -178,11 +178,12 @@
                                             </div>
                                             
                                             <div class="text-end">
-                                                @if($item->quantity > 0)
-                                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1 mb-1 d-block">Available</span>
-                                                    <span class="small fw-bold text-muted">{{ $item->quantity }} {{ $item->unit }}</span>
-                                                @else
+                                                @if($item->quantity <= 0)
                                                     <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1 d-block">Out of Stock</span>
+                                                @elseif($item->quantity <= $item->reorder_level)
+                                                    <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill border border-warning border-opacity-25 px-2 py-1 d-block fw-bold">Low Stock</span>
+                                                @else
+                                                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1 d-block">In Stock</span>
                                                 @endif
                                             </div>
                                         </li>
@@ -238,12 +239,16 @@
                 opt.dataset.name = nameDisplay;
                 opt.dataset.max = item.quantity;
 
-                if(item.quantity > 0) {
-                    opt.textContent = `${nameDisplay} - In Stock: ${item.quantity}`;
-                } else {
+                if(item.quantity <= 0) {
                     opt.disabled = true;
                     opt.className = "text-danger fw-bold";
                     opt.textContent = `[OUT OF STOCK] ${nameDisplay}`;
+                } else if(item.quantity <= item.reorder_level) {
+                    opt.className = "text-warning fw-bold text-dark";
+                    opt.textContent = `[LOW STOCK] ${nameDisplay}`;
+                } else {
+                    opt.className = "text-success fw-bold";
+                    opt.textContent = `[IN STOCK] ${nameDisplay}`;
                 }
 
                 supplySelect.appendChild(opt);
