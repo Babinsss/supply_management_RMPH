@@ -1,6 +1,5 @@
 <x-layouts.admin title="Inventory | Supply Hub">
     
-
     {{-- Top Action Bar with Search & Buttons --}}
     <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
@@ -25,7 +24,7 @@
         </div>
     </div>
 
-    {{-- Category Segregation Filter Buttons (DYNAMIC LOOP) --}}
+    {{-- Category Segregation Filter Buttons --}}
     <div class="d-flex flex-wrap gap-2 mb-4">
         <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
         @foreach($categories as $cat)
@@ -45,7 +44,7 @@
                         <th>Current Stock</th>
                         <th>RIS Number</th>
                         <th>Date Added</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end" style="min-width: 320px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -139,14 +138,21 @@
                                     </button>
                                 </form>
 
-                                <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')">
-                                    <i class="bi bi-printer"></i> Stockcard
+                                {{-- NEW BIN CARD & RAPC BUTTONS --}}
+                                <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')" title="Bin Card">
+                                    <i class="bi bi-card-list"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')">
-                                    <i class="bi bi-card-list"></i> Bin Card
+
+                                <button type="button" class="btn btn-sm btn-light btn-modern text-info border shadow-sm me-1" onclick="printDirectly('/rapc/{{ $item->id }}')" title="Report on Actual Physical Count">
+                                    <i class="bi bi-file-earmark-spreadsheet"></i>
                                 </button>
+
+                                <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')" title="Stockcard">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+
                                 <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
-                                    <i class="bi bi-pencil-square"></i> Edit
+                                    <i class="bi bi-pencil-square"></i>
                                 </button>
                                 
                                 <button class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ $item->id }}">
@@ -166,7 +172,7 @@
         <ul class="pagination justify-content-end" id="paginationControls"></ul>
     </nav>
 
-    {{-- Monthly Report Modal (DYNAMIC LOOP) --}}
+    {{-- Monthly Report Modal --}}
     <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-3 border-0">
@@ -218,7 +224,7 @@
         </div>
     </div>
 
-    {{-- Add New Item Modal (DYNAMIC LOOP) --}}
+    {{-- Add New Item Modal --}}
     <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content bento-card p-2 border-0">
@@ -493,5 +499,4 @@
             });
         </script>
     </x-slot>
-
 </x-layouts.admin>

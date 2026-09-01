@@ -22,7 +22,6 @@ class SupplyController extends Controller
 
         $supplies = Supply::all();
         
-        // Pull and group requests manually by batch_id, including the issuer
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -45,7 +44,6 @@ class SupplyController extends Controller
         $requestsToDisplay = array_values($groupedBatches);
         $pendingCount = collect($requestsToDisplay)->where('status', 'Pending')->count();
         
-        // Custom Paginator Logic (10 items per page)
         $perPage = 10;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $currentItems = array_slice($requestsToDisplay, ($currentPage - 1) * $perPage, $perPage);
@@ -84,7 +82,6 @@ class SupplyController extends Controller
 
         $newItem = Supply::create($validated);
 
-        // LOG ACTION
         \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
         return redirect()->back()->with('success', 'New item added successfully!');
@@ -101,7 +98,6 @@ class SupplyController extends Controller
         }
         $item->save();
 
-        // LOG ACTION
         \App\Models\ActivityLog::log('Inventory', "Adjusted stock for {$item->name} by {$adjustment}. New total: {$item->quantity}");
 
         return redirect()->route('dashboard')->with('success', "Stock updated successfully for {$item->name}!");
@@ -124,7 +120,6 @@ class SupplyController extends Controller
         $item = Supply::findOrFail($id);
         $item->update($validated);
 
-        // LOG ACTION
         \App\Models\ActivityLog::log('Inventory', "Updated details for item: {$item->name}");
 
         return redirect()->back()->with('success', "Item details updated successfully for {$item->name}!");
@@ -136,7 +131,6 @@ class SupplyController extends Controller
         $itemName = $item->name;
         $item->delete();
 
-        // LOG ACTION
         \App\Models\ActivityLog::log('Inventory', "Deleted item from inventory: {$itemName}");
 
         return redirect()->route('dashboard')->with('success', 'Item successfully deleted.');
@@ -144,7 +138,6 @@ class SupplyController extends Controller
 
     public function processBatch(Request $request, $batch_id, $action)
     {
-        // This structural placeholder delegates processing tasks safely
     }
 
     public function approveBatch(Request $request, $batch_id)
@@ -181,7 +174,6 @@ class SupplyController extends Controller
             $req->save();
         }
 
-        // LOG ACTION
         $departmentName = $batchReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
 
@@ -197,7 +189,6 @@ class SupplyController extends Controller
             $req->save();
         }
 
-        // LOG ACTION
         if ($batchReqs->isNotEmpty()) {
             $departmentName = $batchReqs->first()->department_name;
             \App\Models\ActivityLog::log('Supply Issuance', "Denied request {$batch_id} for {$departmentName}");
@@ -208,21 +199,10 @@ class SupplyController extends Controller
 
     public function departmentPortal()
     {
-        // 1. Fetch only visible supplies
         $supplies = Supply::where('is_visible', true)->orderBy('name', 'asc')->get();
+        $departments = \App\Models\Department::where('is_active', true)->orderBy('group_name')->orderBy('name')->get();
+        $categories = \App\Models\Category::where('is_active', true)->orderBy('name')->get();
         
-        // 2. Fetch active departments, sorted by their group
-        $departments = \App\Models\Department::where('is_active', true)
-                        ->orderBy('group_name')
-                        ->orderBy('name')
-                        ->get();
-                        
-        // 3. Fetch active categories
-        $categories = \App\Models\Category::where('is_active', true)
-                        ->orderBy('name')
-                        ->get();
-        
-        // 4. Pass all three to the portal view
         return view('portal', compact('supplies', 'departments', 'categories'));
     }
 
@@ -261,10 +241,7 @@ class SupplyController extends Controller
     public function printBulk($batch_id)
     {
         $batchRequests = DepartmentRequest::where('batch_id', $batch_id)->get();
-        
-        if ($batchRequests->isEmpty()) {
-            abort(404, 'Batch not found');
-        }
+        if ($batchRequests->isEmpty()) abort(404, 'Batch not found');
 
         $sequence = DepartmentRequest::where('batch_id', '!=', $batch_id)
                         ->whereMonth('created_at', now()->month)
@@ -282,18 +259,14 @@ class SupplyController extends Controller
     public function pendingCountApi()
     {
         $this->autoCancelExpiredRequests(); 
-
-        $pendingCount = DepartmentRequest::where('status', 'Pending')
-            ->distinct('batch_id')
-            ->count('batch_id');
-
+        $pendingCount = DepartmentRequest::where('status', 'Pending')->distinct('batch_id')->count('batch_id');
         return response()->json(['count' => $pendingCount]);
     }
     
     public function inventory() 
     {
         $supplies = Supply::orderBy('name', 'asc')->get();
-        $categories = \App\Models\Category::orderBy('name')->get(); // <--- ADD THIS
+        $categories = \App\Models\Category::orderBy('name')->get(); 
         return view('inventory', compact('supplies', 'categories'));
     }
 
@@ -311,7 +284,6 @@ class SupplyController extends Controller
         }
 
         $supplies = $query->orderBy('name', 'asc')->get();
-
         $reportMonth = $request->month ? Carbon::createFromFormat('m', $request->month)->format('F') : null;
         $reportYear = $request->year;
         $reportCategory = $request->category;
@@ -323,9 +295,7 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
-
         $releases = DepartmentRequest::where('supply_id', $id)->where('status', 'Approved')->orderBy('created_at', 'asc')->get();
-
         $filename = "Stockcard_{$item->name}_{$monthFilter}.csv";
 
         $headers = [
@@ -335,18 +305,14 @@ class SupplyController extends Controller
             "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
             "Expires"             => "0"
         ];
-
         $columns = ['Date', 'Reference', 'Department', 'Requested By', 'Qty Issued', 'Running Balance'];
 
         $callback = function () use ($releases, $columns) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-
             $balance = 0; 
-
             foreach ($releases as $release) {
                 $balance -= $release->quantity; 
-
                 fputcsv($file, [
                     Carbon::parse($release->created_at)->format('m/d/Y'),
                     strtoupper(substr($release->batch_id, 0, 8)),
@@ -358,7 +324,6 @@ class SupplyController extends Controller
             }
             fclose($file);
         };
-
         return response()->stream($callback, 200, $headers);
     }
     
@@ -374,27 +339,18 @@ class SupplyController extends Controller
             "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
             "Expires"             => "0"
         ];
-
         $columns = ['ID', 'Item Name', 'Category', 'Description', 'Quantity', 'Unit', 'Reorder Alert Level'];
 
         $callback = function() use($supplies, $columns) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-            
             foreach ($supplies as $item) {
                 fputcsv($file, [
-                    $item->id,
-                    $item->name,
-                    $item->category,
-                    $item->description,
-                    $item->quantity,
-                    $item->unit,
-                    $item->reorder_level
+                    $item->id, $item->name, $item->category, $item->description, $item->quantity, $item->unit, $item->reorder_level
                 ]);
             }
             fclose($file);
         };
-
         return response()->stream($callback, 200, $headers);
     }
     
@@ -415,23 +371,15 @@ class SupplyController extends Controller
         })->values();
 
         $pending_count = $requestsCollection->where('status', 'Pending')->count();
-
         $perPage = 10;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $currentItems = $requestsCollection->slice(($currentPage - 1) * $perPage, $perPage)->all();
         
         $paginatedRequests = new \Illuminate\Pagination\LengthAwarePaginator(
-            $currentItems, 
-            $requestsCollection->count(), 
-            $perPage, 
-            $currentPage, 
-            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+            $currentItems, $requestsCollection->count(), $perPage, $currentPage, ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
         );
 
-        return view('approver.dashboard', [
-            'requests' => $paginatedRequests,
-            'pending_count' => $pending_count
-        ]);
+        return view('approver.dashboard', ['requests' => $paginatedRequests, 'pending_count' => $pending_count]);
     }
 
     public function approverInventory()
@@ -442,21 +390,13 @@ class SupplyController extends Controller
 
     private function autoCancelExpiredRequests()
     {
-        DepartmentRequest::where('status', 'Pending')
-            ->where('created_at', '<', Carbon::now()->subDay(3))
-            ->update(['status' => 'Denied']);
+        DepartmentRequest::where('status', 'Pending')->where('created_at', '<', Carbon::now()->subDay(3))->update(['status' => 'Denied']);
     }
 
-    // --- ONLY ONE UNIFIED STOCKCARD FUNCTION ---
     public function stockcard(Request $request, $id) 
     {
-        // 1. Get the base item the user clicked on
         $clickedItem = Supply::findOrFail($id);
-
-        // 2. Find ALL items in the database with this exact same name
         $matchingSupplies = Supply::where('name', $clickedItem->name)->get();
-
-        // 3. Setup Month Filter Logic
         $month_filter = $request->input('month', date('m'));
         $current_month_label = date('F Y', mktime(0, 0, 0, $month_filter, 1, date('Y')));
         
@@ -470,7 +410,6 @@ class SupplyController extends Controller
 
         $cardsData = [];
 
-        // 4. Loop through each matching supply and calculate its math individually
         foreach ($matchingSupplies as $supply) {
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
@@ -485,7 +424,6 @@ class SupplyController extends Controller
                 ->sum('quantity');
 
             $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;
-
             $tempBalance = $balance_forwarded;
             $formattedReleases = collect();
             foreach ($releasesAsc as $release) {
@@ -494,13 +432,10 @@ class SupplyController extends Controller
                 $formattedReleases->push($release);
             }
             
-            // --- NEW: SMART SKIP ---
-            // If this item has 0 stock, 0 starting balance, and 0 transactions this month... skip printing it!
             if ($supply->quantity == 0 && $balance_forwarded == 0 && $formattedReleases->isEmpty()) {
                 continue;
             }
             
-            // Package this specific supplier's data into our array
             $cardsData[] = [
                 'item' => $supply,
                 'balance_forwarded' => $balance_forwarded,
@@ -508,12 +443,8 @@ class SupplyController extends Controller
             ];
         }
 
-        // We pass the clicked item back for the Toolbar buttons (Excel/Filter)
         $item = $clickedItem;
-
-        return view('stockcard', compact(
-            'item', 'cardsData', 'month_filter', 'current_month_label', 'available_months'
-        ));
+        return view('stockcard', compact('item', 'cardsData', 'month_filter', 'current_month_label', 'available_months'));
     }
 
     public function toggleVisibility($id)
@@ -522,29 +453,26 @@ class SupplyController extends Controller
         $item->is_visible = !$item->is_visible; 
         $item->save();
 
-        // LOG ACTION
         $status = $item->is_visible ? 'visible' : 'hidden';
         \App\Models\ActivityLog::log('Inventory', "Toggled visibility for {$item->name} to {$status}");
 
         return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
     }
+
+    // --- NEW BIN CARD REPORT ---
     public function bincard($id)
     {
         $item = Supply::findOrFail($id);
         
-        // Fetch all approved outgoing requests
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->orderBy('updated_at', 'asc')
             ->get();
 
-        // Calculate the starting balance (Current Stock + Everything Issued)
         $totalIssued = $releases->sum('quantity');
         $startingBalance = $item->quantity + $totalIssued;
 
         $transactions = collect();
-        
-        // Row 1: The Initial Stock / Delivery
         $transactions->push([
             'date' => $item->date_delivered ? $item->date_delivered : $item->created_at,
             'department' => $item->supplier ?: 'Initial Inventory',
@@ -553,7 +481,6 @@ class SupplyController extends Controller
             'balance' => $startingBalance
         ]);
 
-        // Subsequent Rows: The Releases
         $currentBalance = $startingBalance;
         foreach ($releases as $release) {
             $currentBalance -= $release->quantity;
@@ -567,5 +494,23 @@ class SupplyController extends Controller
         }
 
         return view('bincard', compact('item', 'transactions'));
+    }
+
+    // --- NEW REPORT ON ACTUAL PHYSICAL COUNT (RAPC) ---
+    public function rapc($id)
+    {
+        $baseItem = Supply::findOrFail($id);
+
+        // Fetch all items sharing this RIS number to list them together on the report
+        if ($baseItem->ris_number) {
+            $items = Supply::where('ris_number', $baseItem->ris_number)
+                           ->orderBy('name', 'asc')
+                           ->get();
+        } else {
+            // If no RIS, just display the single item
+            $items = collect([$baseItem]);
+        }
+
+        return view('rapc', compact('baseItem', 'items'));
     }
 }

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Auth;
 */
 Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
-    Route::get('/print-inventory', [SupplyController::class, 'printInventory']); // ✅ Now safely shared!
+    Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
 });
 
 /*
@@ -37,9 +37,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 
-    Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
-
+    // New Print Routes
     Route::get('/bincard/{id}', [SupplyController::class, 'bincard']);
+    Route::get('/rapc/{id}', [SupplyController::class, 'rapc']);
+
+    Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
 });
 
 /*
@@ -58,14 +60,12 @@ Route::middleware(['auth', 'role:approver'])->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(function () {
-    // User Management
     Route::get('/users', [App\Http\Controllers\SuperAdminController::class, 'userManagement'])->name('superadmin.users');
     Route::post('/users/add', [App\Http\Controllers\SuperAdminController::class, 'storeUser']);
     Route::post('/users/update/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateUser']);
     Route::get('/users/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteUser']);
     Route::get('/logs', [App\Http\Controllers\SuperAdminController::class, 'activityLogs'])->name('superadmin.logs');
     
-    // Master Data (Departments & Categories)
     Route::get('/master-data', [App\Http\Controllers\SuperAdminController::class, 'masterData'])->name('superadmin.master_data');
     Route::post('/master-data/department', [App\Http\Controllers\SuperAdminController::class, 'addDepartment']);
     Route::post('/master-data/department/update/{id}', [App\Http\Controllers\SuperAdminController::class, 'updateDepartment']);
