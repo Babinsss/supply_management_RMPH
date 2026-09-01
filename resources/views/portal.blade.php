@@ -301,13 +301,13 @@
                 if(item.quantity <= 0) {
                     opt.disabled = true;
                     opt.className = "text-danger fw-bold";
-                    opt.textContent = `[OUT OF STOCK] ${nameDisplay}`;
+                    opt.textContent = nameDisplay;
                 } else if(item.quantity <= item.reorder_level) {
                     opt.className = "text-warning fw-bold text-dark";
-                    opt.textContent = `[LOW STOCK] ${nameDisplay}`;
+                    opt.textContent = nameDisplay;
                 } else {
                     opt.className = "text-success fw-bold";
-                    opt.textContent = `[IN STOCK] ${nameDisplay}`;
+                    opt.textContent = nameDisplay;
                 }
 
                 supplySelect.appendChild(opt);
