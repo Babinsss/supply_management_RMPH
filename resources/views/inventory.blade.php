@@ -142,6 +142,9 @@
                                 <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')">
                                     <i class="bi bi-printer"></i> Stockcard
                                 </button>
+                                <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')">
+                                    <i class="bi bi-card-list"></i> Bin Card
+                                </button>
                                 <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
                                     <i class="bi bi-pencil-square"></i> Edit
                                 </button>

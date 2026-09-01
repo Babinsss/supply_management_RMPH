@@ -38,6 +38,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 
     Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
+
+    Route::get('/bincard/{id}', [SupplyController::class, 'bincard']);
 });
 
 /*

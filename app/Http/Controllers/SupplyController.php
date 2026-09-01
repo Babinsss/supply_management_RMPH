@@ -528,4 +528,44 @@ class SupplyController extends Controller
 
         return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
     }
+    public function bincard($id)
+    {
+        $item = Supply::findOrFail($id);
+        
+        // Fetch all approved outgoing requests
+        $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
+            ->where('status', 'Approved')
+            ->orderBy('updated_at', 'asc')
+            ->get();
+
+        // Calculate the starting balance (Current Stock + Everything Issued)
+        $totalIssued = $releases->sum('quantity');
+        $startingBalance = $item->quantity + $totalIssued;
+
+        $transactions = collect();
+        
+        // Row 1: The Initial Stock / Delivery
+        $transactions->push([
+            'date' => $item->date_delivered ? $item->date_delivered : $item->created_at,
+            'department' => $item->supplier ?: 'Initial Inventory',
+            'delivery_qty' => $startingBalance,
+            'qty_issued' => '',
+            'balance' => $startingBalance
+        ]);
+
+        // Subsequent Rows: The Releases
+        $currentBalance = $startingBalance;
+        foreach ($releases as $release) {
+            $currentBalance -= $release->quantity;
+            $transactions->push([
+                'date' => $release->updated_at,
+                'department' => $release->department_name,
+                'delivery_qty' => '',
+                'qty_issued' => $release->quantity,
+                'balance' => $currentBalance
+            ]);
+        }
+
+        return view('bincard', compact('item', 'transactions'));
+    }
 }
