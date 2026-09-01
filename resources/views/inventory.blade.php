@@ -10,11 +10,11 @@
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
-            <button type="button" class="btn btn-outline-secondary btn-modern bg-white text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+            <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
                 <i class="bi bi-calendar-check me-1"></i> Monthly Report
             </button>
 
-            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern bg-white text-nowrap shadow-sm border">
+            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern text-nowrap shadow-sm border">
                 <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
 
@@ -24,14 +24,33 @@
         </div>
     </div>
 
-    {{-- Category Segregation Filter Buttons --}}
-    <div class="d-flex flex-wrap gap-2 mb-4">
-        <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
-        @foreach($categories as $cat)
-            <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('{{ $cat->name }}', this)">
-                {{ ucwords(strtolower($cat->name)) }}
-            </button>
-        @endforeach
+    {{-- Category & Supplier Filters --}}
+    <div class="d-flex justify-content-between flex-wrap gap-3 mb-4 align-items-center">
+        
+        {{-- Category Pills --}}
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
+            @foreach($categories as $cat)
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('{{ $cat->name }}', this)">
+                    {{ ucwords(strtolower($cat->name)) }}
+                </button>
+            @endforeach
+        </div>
+
+        {{-- NEW: Supplier Dropdown Filter --}}
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small fw-bold text-uppercase text-nowrap"><i class="bi bi-funnel-fill me-1"></i> Supplier:</span>
+            <select id="supplierFilter" class="form-select input-modern py-1 px-3 shadow-sm" style="border-radius: 20px; min-width: 220px;" onchange="filterInventory()">
+                <option value="ALL">All Suppliers</option>
+                @php 
+                    $uniqueSuppliers = collect($supplies)->pluck('supplier')->filter()->unique()->sort(); 
+                @endphp
+                @foreach($uniqueSuppliers as $supplier)
+                    <option value="{{ $supplier }}">{{ strtoupper($supplier) }}</option>
+                @endforeach
+            </select>
+        </div>
+        
     </div>
 
     {{-- Main Inventory Table --}}
@@ -44,12 +63,13 @@
                         <th>Current Stock</th>
                         <th>RIS Number</th>
                         <th>Date Added</th>
-                        <th class="text-end" style="min-width: 320px;">Actions</th>
+                        <th class="text-end" style="min-width: 260px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}">
+                        {{-- Added data-supplier attribute for JavaScript targeting --}}
+                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
                             <td>
                                 <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
                                 
@@ -138,7 +158,7 @@
                                     </button>
                                 </form>
 
-                                {{-- NEW BIN CARD & RAPC BUTTONS --}}
+                                {{-- Integrated Bin Card, RAPC, and Stockcard buttons --}}
                                 <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')" title="Bin Card">
                                     <i class="bi bi-card-list"></i>
                                 </button>
@@ -151,11 +171,11 @@
                                     <i class="bi bi-printer"></i>
                                 </button>
 
-                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}">
+                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}" title="Edit">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
                                 
-                                <button class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ $item->id }}">
+                                <button class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ $item->id }}" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </td>
@@ -434,17 +454,22 @@
 
             function applyFiltersAndPagination() {
                 let searchText = document.getElementById('searchInput').value.toLowerCase();
+                let currentSupplier = document.getElementById('supplierFilter').value;
+                
                 let allRows = document.querySelectorAll('.inventory-row');
                 let visibleRows = [];
 
                 allRows.forEach(row => {
                     let rowCategory = row.getAttribute('data-category');
+                    let rowSupplier = row.getAttribute('data-supplier') || '';
                     let rowText = row.innerText.toLowerCase();
                     
                     let matchesSearch = rowText.includes(searchText);
                     let matchesCategory = (currentCategory === 'ALL' || rowCategory === currentCategory);
+                    let matchesSupplier = (currentSupplier === 'ALL' || rowSupplier === currentSupplier);
 
-                    if (matchesSearch && matchesCategory) {
+                    // Combine all three conditions
+                    if (matchesSearch && matchesCategory && matchesSupplier) {
                         visibleRows.push(row);
                     }
                     row.style.display = 'none'; 
@@ -499,4 +524,5 @@
             });
         </script>
     </x-slot>
+
 </x-layouts.admin>
