@@ -290,10 +290,6 @@
                 opt.value = item.id;
 
                 let nameDisplay = item.name + (item.description ? ` (${item.description})` : '');
-                let batchInfo = [];
-                if(item.supplier) batchInfo.push(`Supplier: ${item.supplier}`);
-                if(item.ris_number) batchInfo.push(`RIS: ${item.ris_number}`);
-                nameDisplay += batchInfo.length > 0 ? ` [${batchInfo.join(' | ')}]` : '';
 
                 opt.dataset.name = nameDisplay;
                 opt.dataset.max = item.quantity;
