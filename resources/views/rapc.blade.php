@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>RAPC - {{ $baseItem->ris_number ?? 'No RIS' }}</title>
+    <title>RAPC - {{ $baseItem->supplier ?? 'No Supplier' }}</title>
     <style>
         /* Forces standard Long Bond Landscape (13in x 8.5in) */
         @page { size: 13in 8.5in; margin: 0.5in; }
@@ -32,8 +32,8 @@
     <div class="header">
         <div class="header-left">
             <div>HOSPITAL: <b>ROXAS MEMORIAL PROVINCIAL HOSPITAL</b></div>
-            <div>RIS NUMBER: <b>{{ $baseItem->ris_number ?? '_______________' }}</b></div>
-            <div>RIS DATE: <b>{{ $baseItem->date_delivered ? \Carbon\Carbon::parse($baseItem->date_delivered)->format('m/d/Y') : '_______________' }}</b></div>
+            <div>RIS NUMBER: <b>{{ $risNumbers ?: '_______________' }}</b></div>
+            <div>RIS DATE: <b>{{ $risDates ?: '_______________' }}</b></div>
             <div>FOR THE YEAR: <b>{{ date('Y') }}</b></div>
         </div>
         
@@ -72,9 +72,10 @@
                 <td>{{ $i->unit_price ? number_format($i->unit_price, 2) : '' }}</td>
                 <td>{{ $i->quantity }}</td>
                 <td>{{ $i->unit }}</td>
-                {{-- 12 Blank Columns for manual handwritten input --}}
-                <td></td><td></td><td></td><td></td><td></td><td></td>
-                <td></td><td></td><td></td><td></td><td></td><td></td>
+                {{-- Dynamically outputs historical stock balances --}}
+                @for($m = 1; $m <= 12; $m++)
+                    <td>{{ $i->monthly_balances[$m] ?? '' }}</td>
+                @endfor
             </tr>
             @endforeach
             

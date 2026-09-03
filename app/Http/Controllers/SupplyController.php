@@ -501,16 +501,61 @@ class SupplyController extends Controller
     {
         $baseItem = Supply::findOrFail($id);
 
-        // Fetch all items sharing this RIS number to list them together on the report
-        if ($baseItem->ris_number) {
-            $items = Supply::where('ris_number', $baseItem->ris_number)
+        // 1. Group items by SUPPLIER
+        if ($baseItem->supplier) {
+            $items = Supply::where('supplier', $baseItem->supplier)
                            ->orderBy('name', 'asc')
                            ->get();
         } else {
-            // If no RIS, just display the single item
             $items = collect([$baseItem]);
         }
 
-        return view('rapc', compact('baseItem', 'items'));
+        // 2. Extract and combine all unique RIS Numbers and Dates
+        $risNumbers = $items->pluck('ris_number')
+                            ->filter()
+                            ->map(function($ris) { return trim($ris); })
+                            ->unique()
+                            ->implode(', ');
+
+        $risDates = $items->pluck('date_delivered')
+                          ->filter()
+                          ->map(function($d) { return \Carbon\Carbon::parse($d)->format('m/d/Y'); })
+                          ->unique()
+                          ->implode(', ');
+
+        // 3. Calculate End-of-Month historical balances
+        $currentMonth = (int) date('m');
+        $currentYear = (int) date('Y');
+
+        foreach ($items as $item) {
+            $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
+                ->where('status', 'Approved')
+                ->whereYear('updated_at', $currentYear)
+                ->get();
+
+            $monthlyBalances = [];
+            for ($m = 1; $m <= 12; $m++) {
+                
+                // NEW: Skip January (1) through July (7) for the launch year 2026
+                if ($currentYear == 2026 && $m < 8) {
+                    $monthlyBalances[$m] = ''; 
+                } 
+                // Skip future months
+                elseif ($m > $currentMonth) {
+                    $monthlyBalances[$m] = ''; 
+                } 
+                // Normal Calculation
+                else {
+                    $releasesAfterM = $releasesThisYear->filter(function($req) use ($m) {
+                        return \Carbon\Carbon::parse($req->updated_at)->month > $m;
+                    })->sum('quantity');
+
+                    $monthlyBalances[$m] = $item->quantity + $releasesAfterM;
+                }
+            }
+            $item->monthly_balances = $monthlyBalances;
+        }
+
+        return view('rapc', compact('baseItem', 'items', 'risNumbers', 'risDates'));
     }
 }
