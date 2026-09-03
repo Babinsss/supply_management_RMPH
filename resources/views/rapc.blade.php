@@ -5,7 +5,13 @@
     <title>RAPC - {{ $baseItem->supplier ?? 'No Supplier' }}</title>
     <style>
         /* Forces standard Long Bond Landscape (13in x 8.5in) */
-        @page { size: 13in 8.5in; margin: 0.5in; }
+        @page { 
+            size: 13in 8.5in; 
+            margin-top: 0.5in;
+            margin-right: 0.5in;
+            margin-bottom: 0.5in;
+            margin-left: 0.85in; /* Increased to prevent left-side clipping */
+        }
         body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 0; color: #000; }
         
         .header { display: flex; justify-content: space-between; margin-bottom: 20px; text-transform: uppercase; line-height: 1.5; }
