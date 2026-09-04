@@ -29,8 +29,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/process-batch/{batch_id}/approve', [SupplyController::class, 'approveBatch']);
     Route::get('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
 
-    Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
-
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
     Route::post('/inventory/toggle-visibility/{id}', [SupplyController::class, 'toggleVisibility']);
@@ -81,6 +79,7 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
 */
 Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('portal');
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
+Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']); // Moved here for public access
 
 Auth::routes();
 
