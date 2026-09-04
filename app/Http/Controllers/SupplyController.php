@@ -234,7 +234,7 @@ class SupplyController extends Controller
         }
 
         return redirect()->route('portal')
-            ->with('success', 'Your bulk request has been successfully submitted to Supply Section.')
+            ->with('success', 'Your request has been successfully submitted to Supply Section.')
             ->with('batch_id', $batchId);
     }
 
