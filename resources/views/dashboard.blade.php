@@ -44,7 +44,7 @@
                 </thead>
                 <tbody>
                     @forelse($requests as $batch)
-                    <tr class="request-row">
+                    <tr class="request-row align-top">
                         <td>
                             @php $batchDate = $batch['created_at'] ?? $batch['items'][0]->created_at; @endphp
                             <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
@@ -55,7 +55,15 @@
                             <div class="text-muted-soft small">{{ $batch['requested_by'] }}</div>
                         </td>
                         <td>
-                            @foreach($batch['items'] as $req)
+                            @php
+                                $displayLimit = 2;
+                                $totalItems = count($batch['items']);
+                                $firstItems = collect($batch['items'])->take($displayLimit);
+                                $remainingItems = collect($batch['items'])->skip($displayLimit);
+                            @endphp
+                            
+                            {{-- Always visible items --}}
+                            @foreach($firstItems as $req)
                                 <div class="mb-2">
                                     <div class="small fw-medium">
                                         <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
@@ -67,6 +75,29 @@
                                     @endif
                                 </div>
                             @endforeach
+
+                            {{-- Hidden items --}}
+                            @if($totalItems > $displayLimit)
+                                <div class="collapse" id="collapse-{{ $batch['batch_id'] }}">
+                                    @foreach($remainingItems as $req)
+                                        <div class="mb-2">
+                                            <div class="small fw-medium">
+                                                <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                            </div>
+                                            @if($req->supply->category)
+                                                <div class="text-muted-soft text-uppercase" style="font-size: 0.65rem; margin-left: 1.4rem; letter-spacing: 0.5px;">
+                                                    <i class="bi bi-tag"></i> {{ $req->supply->category }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                                
+                                {{-- Toggle Button --}}
+                                <button class="btn btn-sm btn-link text-decoration-none p-0 mt-1 fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ $batch['batch_id'] }}">
+                                    View all {{ $totalItems }} items <i class="bi bi-chevron-down ms-1"></i>
+                                </button>
+                            @endif
                         </td>
                         <td>
                             @if($batch['status'] == 'Pending')
@@ -78,7 +109,6 @@
                                     <i class="bi bi-check-circle-fill me-1"></i> Issued
                                 </span>
                                 
-                                {{-- NEW AUDIT TRAIL BADGE --}}
                                 @php $issuer = $batch['items'][0]->issuer; @endphp
                                 @if($issuer)
                                     <div class="mt-2 text-start" style="max-width: 140px;">
