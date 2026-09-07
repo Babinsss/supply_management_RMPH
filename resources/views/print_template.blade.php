@@ -7,7 +7,7 @@
     <style>
         /* --- PRINT SETTINGS --- */
         @page {
-            size: letter portrait;
+            size: 8.5in 13in portrait; /* Philippine Long Bond Size */
             margin: 0.25in;
         }
 
@@ -58,7 +58,7 @@
         .paper-preview {
             background-color: #fff;
             width: 8.5in;
-            height: 10.5in;
+            min-height: 12.5in; /* Adjusted for long bond */
             margin: 60px auto 20px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             box-sizing: border-box;
@@ -70,12 +70,11 @@
         /* Exact Form Structure */
         .form-container {
             width: 100%;
-            height: 4.95in;
+            min-height: 6in; /* Increased to utilize the 13-inch length */
             border: 2px solid #000;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
 
         .header-table {
@@ -186,7 +185,6 @@
             font-size: 9px;
         }
 
-        /* UPDATED TABLE COLUMNS */
         .col-desc { width: 45%; text-align: left; }
         .col-unit { width: 10%; }
         .col-qty-req { width: 15%; }
@@ -294,7 +292,7 @@
             height: 12px;
             line-height: 12px;
             overflow: hidden;
-            margin: 0.05in 0;
+            margin: 0.1in 0;
         }
 
         @media print {
@@ -314,6 +312,10 @@
                 width: 100%;
                 height: 100%;
                 border: none;
+            }
+
+            .form-container {
+                page-break-inside: avoid;
             }
         }
     </style>
@@ -374,13 +376,6 @@
                                 <td class="col-desc" style="padding: 8px 6px;">
                                     <strong>{{ $item->supply->name }}</strong><br>
                                     <span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
-                                    
-                                    {{-- Conditionally display RIS Number --}}
-                                    @if(!empty($item->supply->ris_number))
-                                        <br><span style="font-size: 9px; font-weight: bold; color: #444;">RIS #: {{ $item->supply->ris_number }}</span>
-                                    @elseif(!empty($item->ris_number))
-                                        <br><span style="font-size: 9px; font-weight: bold; color: #444;">RIS #: {{ $item->ris_number }}</span>
-                                    @endif
                                 </td>
                                 <td style="padding: 8px 4px;">{{ $item->supply->unit ?? '' }}</td>
                                 <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}</td>
@@ -447,7 +442,7 @@
                                 <div class="sig-label">Designation</div>
                                 <div class="sig-value">
                                     @if ($title == 'Approved by:')
-                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>HOSPITAL ADMINISTRATOR</span>
+                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
                                     @endif
                                 </div>
                             </div>
