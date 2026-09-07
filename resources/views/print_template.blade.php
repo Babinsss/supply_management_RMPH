@@ -374,8 +374,18 @@
                         @foreach ($batch_requests as $item)
                             <tr>
                                 <td class="col-desc" style="padding: 8px 6px;">
-                                    <strong>{{ $item->supply->name }}</strong><br>
-                                    <span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
+                                    <strong>
+                                        {{ $item->supply->name }}
+                                        @if(!empty($item->supply->ris_number))
+                                            - RIS #: {{ $item->supply->ris_number }}
+                                        @elseif(!empty($item->ris_number))
+                                            - RIS #: {{ $item->ris_number }}
+                                        @endif
+                                    </strong>
+                                    
+                                    @if(!empty($item->supply->description))
+                                        <br><span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
+                                    @endif
                                 </td>
                                 <td style="padding: 8px 4px;">{{ $item->supply->unit ?? '' }}</td>
                                 <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}</td>
