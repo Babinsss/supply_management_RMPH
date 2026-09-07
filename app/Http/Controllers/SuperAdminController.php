@@ -138,4 +138,25 @@ class SuperAdminController extends Controller
         $cat->delete();
         return redirect()->back()->with('success', 'Category removed.');
     }
+    public function risArchive()
+    {
+        // Fetch all requests, typically you want to see Issued/Approved ones
+        $allRequests = \App\Models\DepartmentRequest::with(['supply', 'issuer'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Group them by batch_id just like the main dashboard
+        $requests = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
+            return [
+                'batch_id' => $batchId,
+                'department_name' => $items->first()->department_name,
+                'requested_by' => $items->first()->requested_by,
+                'status' => $items->first()->status,
+                'created_at' => $items->first()->created_at,
+                'items' => $items
+            ];
+        });
+
+        return view('superadmin.ris_archive', compact('requests'));
+    }
 }

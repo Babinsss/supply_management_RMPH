@@ -322,6 +322,7 @@
             let itemName = sel.options[sel.selectedIndex].dataset.name;
             let maxStock = parseInt(sel.options[sel.selectedIndex].dataset.max);
             let existing = cart.find(i => i.id === sel.value);
+            
             let currentQty = existing ? existing.qty : 0;
             
             if (currentQty + parseInt(qty) > maxStock) {

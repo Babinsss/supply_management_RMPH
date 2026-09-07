@@ -58,7 +58,7 @@
         .paper-preview {
             background-color: #fff;
             width: 8.5in;
-            min-height: 12.5in; /* Adjusted for long bond */
+            min-height: 12.5in; 
             margin: 60px auto 20px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             box-sizing: border-box;
@@ -70,11 +70,12 @@
         /* Exact Form Structure */
         .form-container {
             width: 100%;
-            min-height: 6in; /* Increased to utilize the 13-inch length */
+            height: 6in; /* Strict half-page lock */
             border: 2px solid #000;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
+            overflow: hidden; /* Added back to prevent overlapping */
         }
 
         .header-table {
@@ -173,7 +174,7 @@
         th,
         td {
             border: 1px solid #000;
-            padding: 4px;
+            padding: 2px; /* Reduced to ensure 10 items never overflow */
             text-align: center;
             font-size: 10px;
         }
@@ -307,15 +308,16 @@
             }
 
             .paper-preview {
+                page-break-inside: avoid;
+                page-break-after: always;
                 margin: 0;
                 box-shadow: none;
                 width: 100%;
                 height: 100%;
                 border: none;
             }
-
-            .form-container {
-                page-break-inside: avoid;
+            .paper-preview:last-child {
+                page-break-after: auto;
             }
         }
     </style>
@@ -328,167 +330,182 @@
         <a href="/dashboard" class="btn-action btn-back">Return to Dashboard</a>
     </div>
 
-    <div class="paper-preview">
-        @for ($copy = 0; $copy < 2; $copy++)
-            <div class="form-container">
+    @php
+        // 1. Group items into chunks of 10
+        $max_items = 10;
+        $chunks = $batch_requests->chunk($max_items);
+        $halves = [];
 
-                <div class="header-table">
-                    <div class="header-col-1">
-                        <img src="{{ asset('images/capiz.jpg') }}" class="capiz-logo" alt="Capiz">
-                    </div>
-                    <div class="header-col-2">
-                        <div class="header-title-box">
-                            <span class="doc-title-label">Document Title:</span>
-                            <strong style="font-size: 13px; margin-top: 6px;">REQUISITION AND ISSUE SLIP (RIS) FORM</strong>
+        // 2. Logic for Form Duplication vs Overflow
+        if ($chunks->count() == 1) {
+            $halves[] = $chunks->first();
+            $halves[] = $chunks->first();
+        } else {
+            foreach ($chunks as $chunk) {
+                $halves[] = $chunk;
+            }
+            if (count($halves) % 2 != 0) {
+                $halves[] = collect();
+            }
+        }
+        
+        // 3. Group halves into physical pages (2 halves = 1 page)
+        $pages = collect($halves)->chunk(2);
+    @endphp
+
+    {{-- Render Physical Pages --}}
+    @foreach ($pages as $page)
+        <div class="paper-preview">
+            
+            {{-- Render Top and Bottom Halves --}}
+            @foreach ($page as $chunk)
+                <div class="form-container">
+                    <div class="header-table">
+                        <div class="header-col-1">
+                            <img src="{{ asset('images/capiz.jpg') }}" class="capiz-logo" alt="Capiz">
                         </div>
-                        <div class="header-docno-box">Document No: RMH-PPS-F01</div>
+                        <div class="header-col-2">
+                            <div class="header-title-box">
+                                <span class="doc-title-label">Document Title:</span>
+                                <strong style="font-size: 13px; margin-top: 6px;">REQUISITION AND ISSUE SLIP (RIS) FORM</strong>
+                            </div>
+                            <div class="header-docno-box">Document No: RMH-PPS-F01</div>
+                        </div>
+                        <div class="header-col-3">
+                            <span style="font-size: 7px;">Rev No</span>
+                            <strong style="font-size: 13px;">01</strong>
+                        </div>
+                        <div class="header-col-4">
+                            <img src="{{ asset('images/rmph.jpg') }}" class="rmph-logo" alt="RMPH">
+                            <div style="font-size: 6px; font-weight: bold; text-align: center; margin-top: 2px;">
+                                PHILHEALTH<br>ACCREDITED</div>
+                        </div>
                     </div>
-                    <div class="header-col-3">
-                        <span style="font-size: 7px;">Rev No</span>
-                        <strong style="font-size: 13px;">01</strong>
-                    </div>
-                    <div class="header-col-4">
-                        <img src="{{ asset('images/rmph.jpg') }}" class="rmph-logo" alt="RMPH">
-                        <div style="font-size: 6px; font-weight: bold; text-align: center; margin-top: 2px;">
-                            PHILHEALTH<br>ACCREDITED</div>
-                    </div>
-                </div>
 
-                <div class="info-section">
-                    <div>Department/Section: <span style="text-decoration: underline; text-transform: uppercase;">{{ $batch_requests->first()->department_name }}</span></div>
-                    <div>Date: <span style="text-decoration: underline;">{{ \Carbon\Carbon::parse($batch_requests->first()->created_at)->format('F d, Y') }}</span></div>
-                    <div>Control Number: <strong>{{ $control_number }}</strong></div>
-                </div>
+                    <div class="info-section">
+                        <div>Department/Section: <span style="text-decoration: underline; text-transform: uppercase;">{{ $batch_requests->first()->department_name }}</span></div>
+                        <div>Date: <span style="text-decoration: underline;">{{ \Carbon\Carbon::parse($batch_requests->first()->created_at)->format('F d, Y') }}</span></div>
+                        <div>Control Number: <strong>{{ $control_number }}</strong></div>
+                    </div>
 
-                <table>
-                    <thead>
-                        <tr>
-                            <th class="col-desc">Description</th>
-                            <th class="col-unit">Unit</th>
-                            <th class="col-qty-req">Qty<br>Requested</th>
-                            <th class="col-qty-issued">Qty<br>Issued</th>
-                            <th class="col-remarks">Remarks</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($batch_requests as $item)
+                    <table>
+                        <thead>
                             <tr>
-                                <td class="col-desc" style="padding: 8px 6px;">
-                                    <strong>
-                                        {{ $item->supply->name }}
-                                        @if(!empty($item->supply->ris_number))
-                                            - RIS #: {{ $item->supply->ris_number }}
-                                        @elseif(!empty($item->ris_number))
-                                            - RIS #: {{ $item->ris_number }}
-                                        @endif
-                                    </strong>
-                                    
-                                    @if(!empty($item->supply->description))
-                                        <br><span style="font-size: 9px; color: #333; text-transform: uppercase;">{{ $item->supply->description }}</span>
-                                    @endif
-                                </td>
-                                <td style="padding: 8px 4px;">{{ $item->supply->unit ?? '' }}</td>
-                                <td style="font-weight: bold; font-size: 11px; padding: 8px 4px;">{{ $item->quantity }}</td>
-                                <td style="padding: 8px 4px;"></td>
-                                <td style="padding: 8px 4px;"></td>
+                                <th class="col-desc">Description</th>
+                                <th class="col-unit">Unit</th>
+                                <th class="col-qty-req">Qty<br>Requested</th>
+                                <th class="col-qty-issued">Qty<br>Issued</th>
+                                <th class="col-remarks">Remarks</th>
                             </tr>
-                        @endforeach
-
-                        {{-- Generate Filler Rows to keep table height consistent --}}
-                        @php
-                            $min_rows = 3;
-                            $current_rows = count($batch_requests);
-                            $filler = $min_rows - $current_rows;
-                        @endphp
-
-                        @if ($filler > 0)
-                            @for ($i = 0; $i < $filler; $i++)
+                        </thead>
+                        <tbody>
+                            @foreach ($chunk as $item)
                                 <tr>
-                                    <td style="padding: 10px;"></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
+                                    <td class="col-desc" style="padding: 4px 6px;">
+                                        <strong>
+                                            {{ $item->supply->name }}
+                                            @if(!empty($item->supply->ris_number))
+                                                - RIS #: {{ $item->supply->ris_number }}
+                                            @elseif(!empty($item->ris_number))
+                                                - RIS #: {{ $item->ris_number }}
+                                            @endif
+                                        </strong>
+                                    </td>
+                                    <td style="padding: 4px; text-transform: uppercase;">{{ $item->supply->description ?? '' }}</td>
+                                    <td style="font-weight: bold; font-size: 11px; padding: 4px;">{{ $item->quantity }}</td>
+                                    <td style="padding: 4px;"></td>
+                                    <td style="padding: 4px;"></td>
                                 </tr>
-                            @endfor
-                        @endif
+                            @endforeach
 
-                        <tr style="height: 100%;">
-                            <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
-                            <td style="border-bottom: none;"></td>
-                        </tr>
-                    </tbody>
-                </table>
+                            {{-- CRITICAL FIX: Generate exact filler rows to always equal 10 rows total --}}
+                            @php
+                                $min_rows = 10;
+                                $current_rows = count($chunk);
+                                $filler = max($min_rows - $current_rows, 0);
+                            @endphp
 
-                <div class="purpose-section">
-                    <div class="purpose-label">Purpose:</div>
-                    <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
-                </div>
+                            @if ($filler > 0)
+                                @for ($i = 0; $i < $filler; $i++)
+                                    <tr>
+                                        <td style="padding: 8px;"></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                @endfor
+                            @endif
 
-                <div class="signature-grid">
-                    @foreach (['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
-                        <div class="sig-col">
-                            <div class="sig-header">{{ $title }}</div>
-                            <div class="sig-row">
-                                <div class="sig-label">Signature</div>
-                                <div class="sig-value"></div>
-                            </div>
+                        </tbody>
+                    </table>
 
-                            <div class="sig-row">
-                                <div class="sig-label">Printed Name</div>
-                                <div class="sig-value">
-                                    @if ($title == 'Requested by:')
-                                        {{ $batch_requests->first()->requested_by }}
-                                    @elseif ($title == 'Approved by:')
-                                        JHOANNA Q. CRUZ-AM
-                                    @endif
+                    <div class="purpose-section">
+                        <div class="purpose-label">Purpose:</div>
+                        <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
+                    </div>
+
+                    <div class="signature-grid">
+                        @foreach (['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
+                            <div class="sig-col">
+                                <div class="sig-header">{{ $title }}</div>
+                                <div class="sig-row">
+                                    <div class="sig-label">Signature</div>
+                                    <div class="sig-value"></div>
+                                </div>
+
+                                <div class="sig-row">
+                                    <div class="sig-label">Printed Name</div>
+                                    <div class="sig-value">
+                                        @if ($title == 'Requested by:')
+                                            {{ $batch_requests->first()->requested_by }}
+                                        @elseif ($title == 'Approved by:')
+                                            JHOANNA Q. CRUZ-AM
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="sig-row">
+                                    <div class="sig-label">Designation</div>
+                                    <div class="sig-value">
+                                        @if ($title == 'Approved by:')
+                                            <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
+                        @endforeach
+                    </div>
 
-                            <div class="sig-row">
-                                <div class="sig-label">Designation</div>
-                                <div class="sig-value">
-                                    @if ($title == 'Approved by:')
-                                        <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
-                                    @endif
+                    <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
+
+                    <div class="signature-grid" style="border-bottom: none;">
+                        @foreach (['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
+                            <div class="sig-col">
+                                <div class="sig-header">{{ $title }}</div>
+                                <div class="sig-row">
+                                    <div class="sig-label">Signature</div>
+                                    <div class="sig-value"></div>
+                                </div>
+                                <div class="sig-row">
+                                    <div class="sig-label">Printed Name</div>
+                                    <div class="sig-value"></div>
+                                </div>
+                                <div class="sig-row">
+                                    <div class="sig-label">Designation</div>
+                                    <div class="sig-value"></div>
                                 </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                 </div>
 
-                <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
-
-                <div class="signature-grid" style="border-bottom: none;">
-                    @foreach (['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
-                        <div class="sig-col">
-                            <div class="sig-header">{{ $title }}</div>
-                            <div class="sig-row">
-                                <div class="sig-label">Signature</div>
-                                <div class="sig-value"></div>
-                            </div>
-                            <div class="sig-row">
-                                <div class="sig-label">Printed Name</div>
-                                <div class="sig-value"></div>
-                            </div>
-                            <div class="sig-row">
-                                <div class="sig-label">Designation</div>
-                                <div class="sig-value"></div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-            @if ($copy == 0)
-                <div class="cut-line">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                    - - - - - - - - - - - - - - - - - - ✂</div>
-            @endif
-        @endfor
-    </div>
+                @if ($loop->first)
+                    <div class="cut-line">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>
+                @endif
+            @endforeach
+        </div>
+    @endforeach
 
 </body>
 

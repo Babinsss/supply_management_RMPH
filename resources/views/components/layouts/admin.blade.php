@@ -59,8 +59,13 @@
                             </li>
                             <li><hr class="dropdown-divider my-2"></li>
                             <li>
-                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/logs') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/logs">
+                                <a class="dropdown-item rounded-3 fw-bold mb-1 {{ request()->is('superadmin/logs') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/logs">
                                     <i class="bi bi-journal-text me-2 {{ request()->is('superadmin/logs') ? 'text-primary' : 'text-muted' }}"></i> Activity Logs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/ris-archive') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/ris-archive">
+                                    <i class="bi bi-archive-fill me-2 {{ request()->is('superadmin/ris-archive') ? 'text-primary' : 'text-muted' }}"></i> RIS Archive
                                 </a>
                             </li>
                         </ul>
