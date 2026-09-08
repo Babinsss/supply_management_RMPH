@@ -18,8 +18,6 @@ class SupplyController extends Controller
 
    public function dashboard()
     {
-        $this->autoCancelExpiredRequests();
-
         $supplies = Supply::all();
         
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
@@ -264,7 +262,6 @@ class SupplyController extends Controller
 
     public function pendingCountApi()
     {
-        $this->autoCancelExpiredRequests(); 
         $pendingCount = DepartmentRequest::where('status', 'Pending')->distinct('batch_id')->count('batch_id');
         return response()->json(['count' => $pendingCount]);
     }
@@ -362,7 +359,6 @@ class SupplyController extends Controller
     
     public function approverDashboard()
     {
-        $this->autoCancelExpiredRequests();
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])->orderBy('created_at', 'desc')->get();
         
         $requestsCollection = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
