@@ -388,11 +388,6 @@ class SupplyController extends Controller
         return view('approver.inventory', compact('supplies'));
     }
 
-    private function autoCancelExpiredRequests()
-    {
-        DepartmentRequest::where('status', 'Pending')->where('created_at', '<', Carbon::now()->subDay(3))->update(['status' => 'Denied']);
-    }
-
     public function stockcard(Request $request, $id) 
     {
         $clickedItem = Supply::findOrFail($id);
