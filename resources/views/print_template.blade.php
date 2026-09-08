@@ -75,7 +75,7 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Added back to prevent overlapping */
+            overflow: hidden;
         }
 
         .header-table {
@@ -174,7 +174,7 @@
         th,
         td {
             border: 1px solid #000;
-            padding: 2px; /* Reduced to ensure 10 items never overflow */
+            padding: 2px;
             text-align: center;
             font-size: 10px;
         }
@@ -241,12 +241,17 @@
             border-bottom: 1px solid #000;
             font-weight: bold;
             font-size: 8px;
+            height: 16px; /* Fixed height for alignment */
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
         }
 
         .sig-row {
             display: flex;
             border-bottom: 1px solid #000;
-            min-height: 18px;
+            height: 24px; /* Strict fixed height ensures continuous unbroken lines across all columns */
+            box-sizing: border-box;
         }
 
         .sig-row:last-child {
@@ -418,7 +423,7 @@
                                 </tr>
                             @endforeach
 
-                            {{-- CRITICAL FIX: Generate exact filler rows to always equal 10 rows total --}}
+                            {{-- EXACT FILLER ROWS TO MAINTAIN 10 ROWS --}}
                             @php
                                 $min_rows = 10;
                                 $current_rows = count($chunk);
@@ -436,7 +441,6 @@
                                     </tr>
                                 @endfor
                             @endif
-
                         </tbody>
                     </table>
 
@@ -445,10 +449,12 @@
                         <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
                     </div>
 
+                    {{-- TOP SIGNATURE GRID --}}
                     <div class="signature-grid">
                         @foreach (['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
                             <div class="sig-col">
                                 <div class="sig-header">{{ $title }}</div>
+                                
                                 <div class="sig-row">
                                     <div class="sig-label">Signature</div>
                                     <div class="sig-value"></div>
@@ -469,9 +475,15 @@
                                     <div class="sig-label">Designation</div>
                                     <div class="sig-value">
                                         @if ($title == 'Approved by:')
-                                            <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
+                                            <span style="font-size: 6.5px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
                                         @endif
                                     </div>
+                                </div>
+
+                                {{-- NEW DATE ROW --}}
+                                <div class="sig-row">
+                                    <div class="sig-label">Date</div>
+                                    <div class="sig-value"></div>
                                 </div>
                             </div>
                         @endforeach
@@ -479,20 +491,30 @@
 
                     <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
 
+                    {{-- BOTTOM SIGNATURE GRID --}}
                     <div class="signature-grid" style="border-bottom: none;">
                         @foreach (['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
                             <div class="sig-col">
                                 <div class="sig-header">{{ $title }}</div>
+                                
                                 <div class="sig-row">
                                     <div class="sig-label">Signature</div>
                                     <div class="sig-value"></div>
                                 </div>
+                                
                                 <div class="sig-row">
                                     <div class="sig-label">Printed Name</div>
                                     <div class="sig-value"></div>
                                 </div>
+                                
                                 <div class="sig-row">
                                     <div class="sig-label">Designation</div>
+                                    <div class="sig-value"></div>
+                                </div>
+
+                                {{-- NEW DATE ROW --}}
+                                <div class="sig-row">
+                                    <div class="sig-label">Date</div>
                                     <div class="sig-value"></div>
                                 </div>
                             </div>
