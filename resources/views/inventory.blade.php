@@ -27,17 +27,22 @@
     {{-- Category & Supplier Filters --}}
     <div class="d-flex justify-content-between flex-wrap gap-3 mb-4 align-items-center">
         
-        {{-- Category Pills --}}
+        {{-- Category Pills (All Items Removed, Dynamic Active State Added) --}}
         <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
+            @php 
+                // Determine which category should be active (defaults to the first one)
+                $activeCategory = session('active_category', $categories->first()->name ?? 'UNCATEGORIZED');
+            @endphp
+
             @foreach($categories as $cat)
-                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('{{ $cat->name }}', this)">
+                <button class="btn btn-sm rounded-pill px-3 fw-bold filter-btn {{ $activeCategory === $cat->name ? 'btn-primary shadow-sm' : 'btn-outline-primary' }}" 
+                        onclick="setCategory('{{ $cat->name }}', this)">
                     {{ ucwords(strtolower($cat->name)) }}
                 </button>
             @endforeach
         </div>
 
-        {{-- NEW: Supplier Dropdown Filter --}}
+        {{-- Supplier Dropdown Filter --}}
         <div class="d-flex align-items-center gap-2">
             <span class="text-muted small fw-bold text-uppercase text-nowrap"><i class="bi bi-funnel-fill me-1"></i> Supplier:</span>
             <select id="supplierFilter" class="form-select input-modern py-1 px-3 shadow-sm" style="border-radius: 20px; min-width: 220px;" onchange="filterInventory()">
@@ -68,7 +73,6 @@
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        {{-- Added data-supplier attribute for JavaScript targeting --}}
                         <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
                             <td>
                                 <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
@@ -158,7 +162,6 @@
                                     </button>
                                 </form>
 
-                                {{-- Integrated Bin Card, RAPC, and Stockcard buttons --}}
                                 <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')" title="Bin Card">
                                     <i class="bi bi-card-list"></i>
                                 </button>
@@ -431,7 +434,9 @@
 
             let currentPage = 1;
             const rowsPerPage = 10; 
-            let currentCategory = 'ALL';
+            
+            // Set the active category directly from Laravel session data
+            let currentCategory = '{!! session("active_category", $categories->first()->name ?? "") !!}';
 
             function setCategory(cat, btnElement) {
                 currentCategory = cat;
@@ -465,7 +470,7 @@
                     let rowText = row.innerText.toLowerCase();
                     
                     let matchesSearch = rowText.includes(searchText);
-                    let matchesCategory = (currentCategory === 'ALL' || rowCategory === currentCategory);
+                    let matchesCategory = (currentCategory === '' || rowCategory === currentCategory);
                     let matchesSupplier = (currentSupplier === 'ALL' || rowSupplier === currentSupplier);
 
                     // Combine all three conditions

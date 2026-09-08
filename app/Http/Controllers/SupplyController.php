@@ -84,7 +84,10 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
-        return redirect()->back()->with('success', 'New item added successfully!');
+        // Pass the category back to the view so it opens the correct tab
+        return redirect()->back()
+            ->with('success', 'New item added successfully!')
+            ->with('active_category', $newItem->category);
     }
 
     public function updateStock(Request $request, $id)
@@ -122,7 +125,10 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Updated details for item: {$item->name}");
 
-        return redirect()->back()->with('success', "Item details updated successfully for {$item->name}!");
+        // Pass the category back to the view so it opens the correct tab
+        return redirect()->back()
+            ->with('success', "Item details updated successfully for {$item->name}!")
+            ->with('active_category', $item->category);
     }
 
     public function deleteItem($id)
