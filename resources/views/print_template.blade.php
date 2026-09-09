@@ -219,47 +219,38 @@
             font-weight: bold;
         }
 
-        .signature-grid {
-            display: flex;
+        /* --- PERFECT ALIGNMENT SIGNATURE TABLE --- */
+        .sig-table {
             width: 100%;
+            border-collapse: collapse;
             border-bottom: 2px solid #000;
+            table-layout: fixed;
         }
 
-        .sig-col {
-            flex: 1;
-            border-right: 1px solid #000;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sig-col:last-child {
-            border-right: none;
-        }
-
-        .sig-header {
+        .sig-table th {
+            border: 1px solid #000;
             padding: 2px 4px;
-            border-bottom: 1px solid #000;
             font-weight: bold;
             font-size: 8px;
-            height: 16px; /* Fixed height for alignment */
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
+            text-align: left;
+            background-color: #fff;
         }
 
-        .sig-row {
-            display: flex;
-            border-bottom: 1px solid #000;
-            height: 24px; /* Strict fixed height ensures continuous unbroken lines across all columns */
-            box-sizing: border-box;
+        .sig-table td {
+            border: 1px solid #000;
+            padding: 0;
+            height: 1px; /* Forces flex child to fill 100% of cell height */
         }
 
-        .sig-row:last-child {
-            border-bottom: none;
+        .sig-row-inner {
+            display: flex;
+            min-height: 18px;
+            height: 100%;
+            align-items: stretch;
         }
 
         .sig-label {
-            width: 65px;
+            width: 60px;
             border-right: 1px solid #000;
             font-size: 7px;
             display: flex;
@@ -274,9 +265,10 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 8px;
+            font-size: 7.5px;
             text-align: center;
             text-transform: uppercase;
+            padding: 2px 4px;
         }
 
         .supply-section-title {
@@ -302,28 +294,10 @@
         }
 
         @media print {
-            body {
-                background: none;
-                padding: 0;
-                margin: 0;
-            }
-
-            .print-toolbar {
-                display: none;
-            }
-
-            .paper-preview {
-                page-break-inside: avoid;
-                page-break-after: always;
-                margin: 0;
-                box-shadow: none;
-                width: 100%;
-                height: 100%;
-                border: none;
-            }
-            .paper-preview:last-child {
-                page-break-after: auto;
-            }
+            body { background: none; padding: 0; margin: 0; }
+            .print-toolbar { display: none; }
+            .paper-preview { page-break-inside: avoid; page-break-after: always; margin: 0; box-shadow: none; width: 100%; height: 100%; border: none; }
+            .paper-preview:last-child { page-break-after: auto; }
         }
     </style>
 </head>
@@ -339,23 +313,9 @@
         // 1. Group items into chunks of 10
         $max_items = 10;
         $chunks = $batch_requests->chunk($max_items);
-        $halves = [];
-
-        // 2. Logic for Form Duplication vs Overflow
-        if ($chunks->count() == 1) {
-            $halves[] = $chunks->first();
-            $halves[] = $chunks->first();
-        } else {
-            foreach ($chunks as $chunk) {
-                $halves[] = $chunk;
-            }
-            if (count($halves) % 2 != 0) {
-                $halves[] = collect();
-            }
-        }
         
-        // 3. Group halves into physical pages (2 halves = 1 page)
-        $pages = collect($halves)->chunk(2);
+        // 2. Group chunks directly into physical pages (max 2 halves = 1 page)
+        $pages = $chunks->chunk(2);
     @endphp
 
     {{-- Render Physical Pages --}}
@@ -449,80 +409,65 @@
                         <div class="purpose-content">{{ $batch_requests->first()->purpose }}</div>
                     </div>
 
-                    {{-- TOP SIGNATURE GRID --}}
-                    <div class="signature-grid">
-                        @foreach (['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
-                            <div class="sig-col">
-                                <div class="sig-header">{{ $title }}</div>
-                                
-                                <div class="sig-row">
-                                    <div class="sig-label">Signature</div>
-                                    <div class="sig-value"></div>
-                                </div>
-
-                                <div class="sig-row">
-                                    <div class="sig-label">Printed Name</div>
+                    {{-- TOP SIGNATURE TABLE --}}
+                    <table class="sig-table">
+                        <tr>
+                            <th style="width: 25%;">Requested by:</th>
+                            <th style="width: 25%;">Approved by:</th>
+                            <th style="width: 25%;">Issued by:</th>
+                            <th style="width: 25%;">Received by:</th>
+                        </tr>
+                        @foreach(['Signature', 'Printed Name', 'Designation', 'Date'] as $field)
+                        <tr>
+                            @foreach(['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] as $title)
+                            <td>
+                                <div class="sig-row-inner">
+                                    <div class="sig-label">{{ $field }}</div>
                                     <div class="sig-value">
-                                        @if ($title == 'Requested by:')
-                                            {{ $batch_requests->first()->requested_by }}
-                                        @elseif ($title == 'Approved by:')
-                                            JHOANNA Q. CRUZ-AM
+                                        @if($field == 'Printed Name')
+                                            @if ($title == 'Requested by:')
+                                                {{ $batch_requests->first()->requested_by }}
+                                            @elseif ($title == 'Approved by:')
+                                                JHOANNA Q. CRUZ-AM
+                                            @endif
+                                        @elseif($field == 'Designation')
+                                            @if ($title == 'Approved by:')
+                                                <span style="font-size: 6.5px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
+                                            @endif
                                         @endif
                                     </div>
                                 </div>
-
-                                <div class="sig-row">
-                                    <div class="sig-label">Designation</div>
-                                    <div class="sig-value">
-                                        @if ($title == 'Approved by:')
-                                            <span style="font-size: 6.5px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>ACTING HOSPITAL ADMINISTRATOR</span>
-                                        @endif
-                                    </div>
-                                </div>
-
-                                {{-- NEW DATE ROW --}}
-                                <div class="sig-row">
-                                    <div class="sig-label">Date</div>
-                                    <div class="sig-value"></div>
-                                </div>
-                            </div>
+                            </td>
+                            @endforeach
+                        </tr>
                         @endforeach
-                    </div>
+                    </table>
 
                     <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
 
-                    {{-- BOTTOM SIGNATURE GRID --}}
-                    <div class="signature-grid" style="border-bottom: none;">
-                        @foreach (['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
-                            <div class="sig-col">
-                                <div class="sig-header">{{ $title }}</div>
-                                
-                                <div class="sig-row">
-                                    <div class="sig-label">Signature</div>
+                    {{-- BOTTOM SIGNATURE TABLE --}}
+                    <table class="sig-table" style="border-bottom: none;">
+                        <tr>
+                            <th style="width: 33.33%;">Encoded/Posted by:</th>
+                            <th style="width: 33.33%;">Checked/Validated by:</th>
+                            <th style="width: 33.33%;">Released by:</th>
+                        </tr>
+                        @foreach(['Signature', 'Printed Name', 'Designation', 'Date'] as $field)
+                        <tr>
+                            @foreach(['Encoded/Posted by:', 'Checked/Validated by:', 'Released by:'] as $title)
+                            <td>
+                                <div class="sig-row-inner">
+                                    <div class="sig-label">{{ $field }}</div>
                                     <div class="sig-value"></div>
                                 </div>
-                                
-                                <div class="sig-row">
-                                    <div class="sig-label">Printed Name</div>
-                                    <div class="sig-value"></div>
-                                </div>
-                                
-                                <div class="sig-row">
-                                    <div class="sig-label">Designation</div>
-                                    <div class="sig-value"></div>
-                                </div>
-
-                                {{-- NEW DATE ROW --}}
-                                <div class="sig-row">
-                                    <div class="sig-label">Date</div>
-                                    <div class="sig-value"></div>
-                                </div>
-                            </div>
+                            </td>
+                            @endforeach
+                        </tr>
                         @endforeach
-                    </div>
+                    </table>
                 </div>
 
-                @if ($loop->first)
+                @if ($loop->first && count($page) > 1)
                     <div class="cut-line">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>
                 @endif
             @endforeach
