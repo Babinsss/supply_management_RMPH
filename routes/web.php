@@ -71,6 +71,9 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
     Route::get('/master-data/department/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteDepartment']);
     Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
     Route::get('/ris-archive', [App\Http\Controllers\SuperAdminController::class, 'risArchive'])->name('superadmin.ris_archive');
+    Route::get('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'index']);
+    Route::post('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'store']);
+    Route::get('/petty-cash/print/{id}', [App\Http\Controllers\PettyCashController::class, 'printReceipt']);
 });
 
 /*

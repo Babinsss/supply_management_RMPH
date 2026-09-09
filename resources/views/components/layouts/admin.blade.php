@@ -68,6 +68,11 @@
                                     <i class="bi bi-archive-fill me-2 {{ request()->is('superadmin/ris-archive') ? 'text-primary' : 'text-muted' }}"></i> RIS Archive
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/petty-cash') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/petty-cash">
+                                    <i class="bi bi-wallet2 me-2 {{ request()->is('superadmin/petty-cash') ? 'text-primary' : 'text-muted' }}"></i> Petty Cash
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 @endif
