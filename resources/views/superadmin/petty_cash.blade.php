@@ -1,4 +1,4 @@
-<x-layouts.admin title="Petty Cash Ledger | Superadmin">
+<x-layouts.admin title="Petty Cash Ledger | Supply Hub">
     <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark">
             <i class="bi bi-wallet2 text-success me-2"></i> Petty Cash Ledger
@@ -68,7 +68,7 @@
                             {{ $txn->type == 'Replenishment' ? '+' : '-' }}₱{{ number_format($txn->amount, 2) }}
                         </td>
                         <td class="text-end">
-                            <button type="button" onclick="printDirectly('/superadmin/petty-cash/print/{{ $txn->id }}')" class="btn btn-sm btn-light btn-modern border shadow-sm text-primary" title="Print Voucher">
+                            <button type="button" onclick="printDirectly('/petty-cash/print/{{ $txn->id }}')" class="btn btn-sm btn-light btn-modern border shadow-sm text-primary" title="Print Voucher">
                                 <i class="bi bi-printer-fill"></i>
                             </button>
                         </td>
@@ -85,7 +85,7 @@
     <div class="modal fade" id="expenseModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-2 border-0">
-                <form action="/superadmin/petty-cash" method="POST">
+                <form action="/petty-cash" method="POST">
                     @csrf
                     <input type="hidden" name="type" value="Expense">
                     <div class="modal-header border-0 pb-0">
@@ -107,20 +107,50 @@
                         </div>
                         
                         <hr class="border-light my-3">
-                        <p class="text-dark fw-bold mb-2 small"><i class="bi bi-box-seam text-primary me-1"></i> Add to Inventory? (Optional)</p>
-                        <div class="row g-2">
-                            <div class="col-8">
-                                <select class="form-select input-modern" name="supply_id">
-                                    <option value="">Do not link to inventory</option>
-                                    @foreach($supplies as $item)
-                                        <option value="{{ $item->id }}">{{ $item->name }}</option>
-                                    @endforeach
-                                </select>
+                        <p class="text-dark fw-bold mb-2 small"><i class="bi bi-box-seam text-primary me-1"></i> Inventory Integration</p>
+                        
+                        {{-- TOGGLE RADIO BUTTONS --}}
+                        <div class="mb-3 d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeNone" value="none" checked onchange="toggleInvMode()">
+                                <label class="form-check-label small fw-bold" for="modeNone">Do not link</label>
                             </div>
-                            <div class="col-4">
-                                <input type="number" class="form-control input-modern" name="quantity" placeholder="Qty Bought">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeExisting" value="existing" onchange="toggleInvMode()">
+                                <label class="form-check-label small fw-bold text-primary" for="modeExisting">Add to Existing Item</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeNew" value="new" onchange="toggleInvMode()">
+                                <label class="form-check-label small fw-bold text-success" for="modeNew">Create New Item</label>
                             </div>
                         </div>
+
+                        {{-- EXISTING ITEM DROPDOWN (Hidden by default) --}}
+                        <div id="existingFields" style="display: none;" class="mb-2">
+                            <select class="form-select input-modern" name="supply_id">
+                                <option value="" disabled selected>Select existing item...</option>
+                                @foreach($supplies as $item)
+                                    <option value="{{ $item->id }}">{{ $item->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- NEW ITEM FIELDS (Hidden by default) --}}
+                        <div id="newFields" style="display: none;" class="mb-2">
+                            <input type="text" class="form-control input-modern mb-2" name="new_item_name" placeholder="Item Name (e.g. SSD 500GB)">
+                            <select class="form-select input-modern" name="new_item_category">
+                                <option value="" disabled selected>Select Category...</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- SHARED QUANTITY FIELD (Hidden by default) --}}
+                        <div id="qtyField" style="display: none;" class="mb-2">
+                            <input type="number" class="form-control input-modern" name="quantity" placeholder="Quantity Bought" min="1">
+                        </div>
+
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
@@ -135,7 +165,7 @@
     <div class="modal fade" id="replenishModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-2 border-0">
-                <form action="/superadmin/petty-cash" method="POST">
+                <form action="/petty-cash" method="POST">
                     @csrf
                     <input type="hidden" name="type" value="Replenishment">
                     <div class="modal-header border-0 pb-0">
@@ -167,6 +197,19 @@
 
     <x-slot name="scripts">
         <script>
+            // Script to toggle the inventory inputs dynamically
+            function toggleInvMode() {
+                let mode = document.querySelector('input[name="inventory_mode"]:checked').value;
+                let existingFields = document.getElementById('existingFields');
+                let newFields = document.getElementById('newFields');
+                let qtyField = document.getElementById('qtyField');
+
+                existingFields.style.display = (mode === 'existing') ? 'block' : 'none';
+                newFields.style.display = (mode === 'new') ? 'block' : 'none';
+                qtyField.style.display = (mode !== 'none') ? 'block' : 'none';
+            }
+
+            // Script for hidden printing
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
