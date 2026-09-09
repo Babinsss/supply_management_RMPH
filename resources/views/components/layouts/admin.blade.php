@@ -69,8 +69,8 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/petty-cash') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/petty-cash">
-                                    <i class="bi bi-wallet2 me-2 {{ request()->is('superadmin/petty-cash') ? 'text-primary' : 'text-muted' }}"></i> Petty Cash
+                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('petty-cash') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/petty-cash">
+                                    <i class="bi bi-wallet2 me-2 {{ request()->is('petty-cash') ? 'text-primary' : 'text-muted' }}"></i> Petty Cash
                                 </a>
                             </li>
                         </ul>
