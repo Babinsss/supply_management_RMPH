@@ -558,11 +558,8 @@ class SupplyController extends Controller
         $data = $request->validate([
             'department_name' => 'required|string',
             'requested_by' => 'required|string',
-            // Update validations to expect arrays
             'item_name' => 'required|array|min:1',
             'item_name.*' => 'required|string',
-            'estimated_price' => 'required|array|min:1',
-            'estimated_price.*' => 'required|numeric',
             'quantity' => 'required|array|min:1',
             'quantity.*' => 'required|integer|min:1',
             'purpose' => 'required|string',
@@ -570,6 +567,7 @@ class SupplyController extends Controller
 
         return view('print_petty_cash_ris', compact('data'));
     }
+
     public function liveInventory()
     {
         // Fetches only the numbers we need to keep the background check lightning fast
@@ -622,5 +620,33 @@ class SupplyController extends Controller
         return redirect()->back()
             ->with('success', "Stock successfully adjusted for {$item->name}!")
             ->with('active_category', $item->category);
+    }
+
+    // --- NEW ITEM USAGE (TOP REQUESTORS) REPORT ---
+    public function printItemUsage(Request $request)
+    {
+        $request->validate([
+            'item_id' => 'required|exists:supplies,id',
+            'month' => 'required',
+            'year' => 'required',
+        ]);
+
+        $item = Supply::findOrFail($request->item_id);
+        
+        // Query approved requests, filter by item and date, group by department, and sum the quantity
+        $usageData = \App\Models\DepartmentRequest::where('supply_id', $item->id)
+            ->where('status', 'Approved')
+            ->where('quantity', '>', 0) // Ignores ghost entries
+            ->whereMonth('updated_at', $request->month)
+            ->whereYear('updated_at', $request->year)
+            ->selectRaw('department_name, SUM(quantity) as total_requested')
+            ->groupBy('department_name')
+            ->orderBy('total_requested', 'desc')
+            ->get();
+
+        $reportMonth = Carbon::createFromFormat('m', $request->month)->format('F');
+        $reportYear = $request->year;
+
+        return view('print_item_usage', compact('item', 'usageData', 'reportMonth', 'reportYear'));
     }
 }

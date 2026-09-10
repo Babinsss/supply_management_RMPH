@@ -13,6 +13,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
     
+    // NEW: Item Usage / Top Requestors Report (Shared Access)
+    Route::get('/print-item-usage', [SupplyController::class, 'printItemUsage']);
+    
     // NEW: Live Inventory Sync Route
     Route::get('/api/inventory/live', [SupplyController::class, 'liveInventory']); 
     

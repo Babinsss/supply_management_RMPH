@@ -243,16 +243,12 @@
                     {{-- Container for dynamic item rows --}}
                     <div id="pcItemsContainer">
                         <div class="pc-item-row bg-light p-3 rounded-4 mb-3 border position-relative">
-                            <div class="mb-2 pe-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
-                            </div>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Est. Price (₱) <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" class="form-control input-modern" name="estimated_price[]" placeholder="0.00" required>
+                            <div class="row g-2 pe-4">
+                                <div class="col-8">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-4">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Quantity <span class="text-danger">*</span></label>
                                     <input type="number" class="form-control input-modern" name="quantity[]" value="1" min="1" required>
                                 </div>
@@ -488,16 +484,12 @@
             newRow.className = 'pc-item-row bg-light p-3 rounded-4 mb-3 border position-relative';
             newRow.innerHTML = `
                 <button type="button" class="btn-close position-absolute top-0 end-0 m-2" onclick="this.closest('.pc-item-row').remove()"></button>
-                <div class="mb-2 pe-4">
-                    <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
-                </div>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <label class="form-label text-muted small fw-bold text-uppercase">Est. Price (₱) <span class="text-danger">*</span></label>
-                        <input type="number" step="0.01" class="form-control input-modern" name="estimated_price[]" placeholder="0.00" required>
+                <div class="row g-2 pe-4">
+                    <div class="col-8">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
                     </div>
-                    <div class="col-6">
+                    <div class="col-4">
                         <label class="form-label text-muted small fw-bold text-uppercase">Quantity <span class="text-danger">*</span></label>
                         <input type="number" class="form-control input-modern" name="quantity[]" value="1" min="1" required>
                     </div>

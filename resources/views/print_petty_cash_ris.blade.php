@@ -29,7 +29,7 @@
         <img src="{{ asset('images/capiz.jpg') }}" class="logo-left" alt="Capiz">
         <div class="title">
             <h2>ROXAS MEMORIAL PROVINCIAL HOSPITAL</h2>
-            <h3>REQUISITION AND ISSUE SLIP (RIS)</h3>
+            <h3>PURCHASE REQUESTION FORM (PRF)</h3>
             <p>FOR PURCHASE - APPROVAL</p>
         </div>
         <img src="{{ asset('images/rmph.jpg') }}" class="logo-right" alt="RMPH">
@@ -48,34 +48,29 @@
         <thead>
             <tr>
                 <th style="width: 15%;">Quantity</th>
-                <th style="width: 50%;">Item Description (Manual Entry)</th>
-                <th style="width: 15%;">Est. Price</th>
-                <th style="width: 20%;">Total Est. Cost</th>
+                <th style="width: 45%;">Item Description</th>
+                <th style="width: 20%;">Unit Cost<br><span style="font-weight: normal; font-size: 10px;">(For Supply Use)</span></th>
+                <th style="width: 20%;">Total Cost<br><span style="font-weight: normal; font-size: 10px;">(For Supply Use)</span></th>
             </tr>
         </thead>
         <tbody>
-            @php $grandTotal = 0; @endphp
-            
             {{-- Loop through every item requested --}}
             @foreach($data['item_name'] as $index => $itemName)
                 @php 
                     $qty = $data['quantity'][$index];
-                    $price = $data['estimated_price'][$index];
-                    $total = $qty * $price;
-                    $grandTotal += $total;
                 @endphp
                 <tr>
                     <td style="font-weight: bold; font-size: 14px;">{{ $qty }}</td>
                     <td style="text-align: left; padding-left: 15px; font-weight: bold;">{{ strtoupper($itemName) }}</td>
-                    <td>₱{{ number_format($price, 2) }}</td>
-                    <td style="font-weight: bold;">₱{{ number_format($total, 2) }}</td>
+                    <td></td> {{-- Blank for handwritten input --}}
+                    <td></td> {{-- Blank for handwritten input --}}
                 </tr>
             @endforeach
 
             {{-- Grand Total Row --}}
             <tr>
-                <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 15px;">GRAND TOTAL (ESTIMATED):</td>
-                <td style="font-weight: bold; font-size: 15px;">₱{{ number_format($grandTotal, 2) }}</td>
+                <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 15px;">GRAND TOTAL:</td>
+                <td></td> {{-- Blank for handwritten input --}}
             </tr>
 
             <tr>

@@ -1,30 +1,41 @@
 <x-layouts.admin title="Inventory | Supply Hub">
     
     {{-- Top Action Bar with Search & Buttons --}}
-    <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
-        <h5 class="fw-bolder mb-0 text-dark text-nowrap"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
-        
-        <div class="d-flex gap-2 align-items-center justify-content-end flex-grow-1 ms-4">
-            <div class="input-group flex-grow-1" style="max-width: 450px;">
-                <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
+    <div class="mb-3 bento-card py-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            
+            {{-- Left Zone: Title & Search --}}
+            <div class="d-flex align-items-center flex-wrap gap-3 flex-grow-1">
+                <h5 class="fw-bolder mb-0 text-dark text-nowrap">
+                    <i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory
+                </h5>
+                
+                {{-- FIX: Locked in width:100% and min-width so it can never be crushed again --}}
+                <div class="input-group flex-grow-1" style="width: 100%; max-width: 500px; min-width: 280px;">
+                    <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
+                </div>
             </div>
             
-            <a href="/petty-cash" class="btn btn-outline-success btn-modern text-nowrap shadow-sm border">
-                <i class="bi bi-wallet2 me-1"></i> Petty Cash
-            </a>
+            {{-- Right Zone: Action Buttons --}}
+            <div class="d-flex flex-wrap justify-content-end gap-2">
+                <a href="/petty-cash" class="btn btn-outline-success btn-modern text-nowrap shadow-sm border">
+                    <i class="bi bi-wallet2 me-1"></i> Petty Cash
+                </a>
+                <button type="button" class="btn btn-outline-info btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
+                    <i class="bi bi-bar-chart-fill me-1"></i> Item Usage
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+                    <i class="bi bi-calendar-check me-1"></i> Monthly Report
+                </button>
+                <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern text-nowrap shadow-sm border">
+                    <i class="bi bi-printer-fill me-1"></i> Print Directory
+                </button>
+                <button class="btn btn-primary btn-modern text-nowrap shadow-sm" data-bs-toggle="modal" data-bs-target="#addSupplyModal">
+                    <i class="bi bi-plus-lg me-1"></i> New Item
+                </button>
+            </div>
             
-            <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
-                <i class="bi bi-calendar-check me-1"></i> Monthly Report
-            </button>
-
-            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern text-nowrap shadow-sm border">
-                <i class="bi bi-printer-fill me-1"></i> Print Directory
-            </button>
-
-            <button class="btn btn-primary btn-modern text-nowrap shadow-sm" data-bs-toggle="modal" data-bs-target="#addSupplyModal">
-                <i class="bi bi-plus-lg me-1"></i> New Item
-            </button>
         </div>
     </div>
 
@@ -205,6 +216,57 @@
     <nav aria-label="Inventory Pagination" class="mb-5">
         <ul class="pagination justify-content-end" id="paginationControls"></ul>
     </nav>
+
+    {{-- Item Usage Report Modal --}}
+    <div class="modal fade" id="itemUsageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bento-card p-3 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bolder text-info"><i class="bi bi-bar-chart-fill me-2"></i>Item Usage Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Select Item to Analyze</label>
+                            <select id="usageItemId" class="form-select input-modern fw-bold">
+                                @foreach($supplies as $sup)
+                                    <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
+                            <select id="usageMonth" class="form-select input-modern">
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09" selected>September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Year</label>
+                            <input type="number" id="usageYear" class="input-modern" value="{{ date('Y') }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-2">
+                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-info btn-modern shadow-sm text-white fw-bolder" onclick="printItemUsage()">
+                        <i class="bi bi-printer-fill me-2"></i> Generate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- Monthly Report Modal --}}
     <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
@@ -492,6 +554,20 @@
                 let modalElement = document.getElementById('monthlyReportModal');
                 let modalInstance = bootstrap.Modal.getInstance(modalElement);
                 if(modalInstance) modalInstance.hide();
+                printDirectly(url);
+            }
+
+            function printItemUsage() {
+                let itemId = document.getElementById('usageItemId').value;
+                let month = document.getElementById('usageMonth').value;
+                let year = document.getElementById('usageYear').value;
+                
+                let url = `/print-item-usage?item_id=${itemId}&month=${month}&year=${year}`;
+                
+                let modalElement = document.getElementById('itemUsageModal');
+                let modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if(modalInstance) modalInstance.hide();
+                
                 printDirectly(url);
             }
 
