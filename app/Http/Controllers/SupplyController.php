@@ -20,6 +20,8 @@ class SupplyController extends Controller
     {
         $supplies = Supply::all();
         
+        $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
+        
         // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
@@ -60,7 +62,8 @@ class SupplyController extends Controller
         return view('dashboard', [
             'items' => $supplies, 
             'requests' => $paginatedRequests, 
-            'pending_count' => $pendingCount
+            'pending_count' => $pendingCount,
+            'low_stock_count' => $lowStockCount
         ]);
     }
 
@@ -183,7 +186,6 @@ class SupplyController extends Controller
             return redirect()->back()->with('warning', 'This request has already been processed.');
         }
 
-        // --- NEW STRICT GLOBAL FIFO QUEUE CHECK ---
         $batchTime = $batchReqs->first()->created_at;
         
         $olderPendingExists = DepartmentRequest::where('status', 'Pending')
@@ -193,7 +195,6 @@ class SupplyController extends Controller
         if ($olderPendingExists) {
             return redirect()->back()->with('danger', "Cannot approve! You must process the oldest pending hospital request first.");
         }
-        // ------------------------------------------
 
         foreach ($batchReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
@@ -202,20 +203,37 @@ class SupplyController extends Controller
             }
         }
 
+        // --- FIX: Prevent Duplicate Line Overdraw ---
+        // Groups identical items together to check the true total requested amount
+        $supplySums = [];
         foreach ($batchReqs as $req) {
-            if ($req->supply->quantity < $req->quantity) {
-                return redirect()->back()->with('danger', "Cannot approve! Not enough stock for {$req->supply->name}. You tried to release {$req->quantity} but only have {$req->supply->quantity}.");
+            if (!isset($supplySums[$req->supply_id])) {
+                $supplySums[$req->supply_id] = 0;
             }
+            $supplySums[$req->supply_id] += $req->quantity;
         }
 
-        foreach ($batchReqs as $req) {
-            $req->supply->quantity -= $req->quantity;
-            $req->supply->save();
-            
-            $req->status = 'Approved';
-            $req->issued_by = Auth::id(); 
-            $req->save();
+        foreach ($supplySums as $supplyId => $totalRequested) {
+            $supply = Supply::find($supplyId);
+            if ($supply->quantity < $totalRequested) {
+                return redirect()->back()->with('danger', "Cannot approve! Total requested for {$supply->name} ({$totalRequested}) exceeds available stock ({$supply->quantity}).");
+            }
         }
+        // --------------------------------------------
+
+        // --- FIX: Database Transaction Safety Net ---
+        // Guarantees all items process successfully, or none of them do.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($batchReqs) {
+            foreach ($batchReqs as $req) {
+                $req->supply->quantity -= $req->quantity;
+                $req->supply->save();
+                
+                $req->status = 'Approved';
+                $req->issued_by = Auth::id(); 
+                $req->save();
+            }
+        });
+        // --------------------------------------------
 
         $departmentName = $batchReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
@@ -404,6 +422,8 @@ class SupplyController extends Controller
     
     public function approverDashboard()
     {
+        $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
+
         // Apply the same Smart Sort to the Approver view
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
@@ -431,7 +451,11 @@ class SupplyController extends Controller
             $currentItems, $requestsCollection->count(), $perPage, $currentPage, ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
         );
 
-        return view('approver.dashboard', ['requests' => $paginatedRequests, 'pending_count' => $pending_count]);
+        return view('approver.dashboard', [
+            'requests' => $paginatedRequests, 
+            'pending_count' => $pending_count,
+            'low_stock_count' => $lowStockCount
+        ]);
     }
 
     public function approverInventory()

@@ -38,7 +38,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/delete/{id}', [SupplyController::class, 'deleteItem']);
 
     Route::post('/process-batch/{batch_id}/approve', [SupplyController::class, 'approveBatch']);
-    Route::get('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
+    Route::post('/process-batch/{batch_id}/deny', [SupplyController::class, 'denyBatch']);
 
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
@@ -94,9 +94,10 @@ Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('port
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
 Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
 
-// NEW: Petty Cash Manual Request Print Route
+// Petty Cash Manual Request Print Route
 Route::post('/portal/petty-cash/print', [SupplyController::class, 'printPettyCashRequest']);
 
-Auth::routes();
+// FIX: Completely disables the /register route
+Auth::routes(['register' => false]); 
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

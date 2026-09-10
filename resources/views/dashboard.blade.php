@@ -1,8 +1,8 @@
 <x-layouts.admin title="Dashboard | Supply Hub">
     
     <div class="row g-4 mb-4">
-        <div class="col-md-6">
-            <div class="bento-card bg-primary text-white d-flex justify-content-between align-items-center">
+        <div class="col-md-4">
+            <div class="bento-card bg-primary text-white d-flex justify-content-between align-items-center h-100">
                 <div>
                     <p class="text-white-50 fw-bold mb-1 text-uppercase small">Pending Requests</p>
                     <h1 class="fw-bolder mb-0 display-4" id="navPendingCount">{{ $pending_count }}</h1>
@@ -10,13 +10,22 @@
                 <i class="bi bi-bell-fill fs-1 text-white-50"></i>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="bento-card d-flex justify-content-between align-items-center">
+        <div class="col-md-4">
+            <div class="bento-card d-flex justify-content-between align-items-center h-100">
                 <div>
                     <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions Processed</p>
                     <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
                 </div>
                 <i class="bi bi-check2-all fs-1 text-primary opacity-25"></i>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bento-card bg-danger bg-opacity-10 border border-danger border-opacity-25 d-flex justify-content-between align-items-center h-100">
+                <div>
+                    <p class="text-danger fw-bold mb-1 text-uppercase small">Low Stock Alerts</p>
+                    <h1 class="fw-bolder mb-0 display-4 text-danger">{{ $low_stock_count }}</h1>
+                </div>
+                <i class="bi bi-exclamation-octagon-fill fs-1 text-danger opacity-50"></i>
             </div>
         </div>
     </div>
@@ -127,9 +136,12 @@
                         <td class="text-end">
                             @if($batch['status'] == 'Pending')
                                 <div class="d-flex justify-content-end gap-2">
-                                    <a href="/process-batch/{{ $batch['batch_id'] }}/deny" class="btn btn-sm btn-modern btn-outline-danger" onclick="return confirm('Are you sure you want to disapprove this entire request?')">
-                                        <i class="bi bi-x-circle me-1"></i> Disapprove
-                                    </a>
+                                    <form action="/process-batch/{{ $batch['batch_id'] }}/deny" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to disapprove this entire request?')">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-modern btn-outline-danger">
+                                            <i class="bi bi-x-circle me-1"></i> Disapprove
+                                        </button>
+                                    </form>
                                     <button type="button" class="btn btn-sm btn-modern btn-success" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}">
                                         <i class="bi bi-box-arrow-up-right me-1"></i> Issue
                                     </button>

@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Supply extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'supplies';
 
@@ -20,6 +21,7 @@ class Supply extends Model
     {
         return $this->hasMany(DepartmentRequest::class, 'supply_id');
     }
+    
     // Add this inside your Supply class
     public function departmentRequests()
     {

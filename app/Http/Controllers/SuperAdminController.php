@@ -99,7 +99,14 @@ class SuperAdminController extends Controller
 
     public function addDepartment(Request $request)
     {
-        Department::create($request->all());
+        // FIX: Strict validation prevents malicious payload injections
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'head_name' => 'nullable|string|max:255',
+            'group_name' => 'nullable|string|max:255'
+        ]);
+
+        Department::create($validated);
         ActivityLog::log('System Setting', "Added new department: {$request->name}");
         return redirect()->back()->with('success', 'Department added successfully!');
     }
@@ -126,7 +133,13 @@ class SuperAdminController extends Controller
 
     public function addCategory(Request $request)
     {
-        Category::create($request->all());
+        // FIX: Strict validation ensures only expected fields are saved
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'is_active' => 'boolean'
+        ]);
+
+        Category::create($validated);
         ActivityLog::log('System Setting', "Added new category: {$request->name}");
         return redirect()->back()->with('success', 'Category added successfully!');
     }
