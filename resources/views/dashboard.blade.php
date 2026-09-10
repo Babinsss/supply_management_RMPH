@@ -202,6 +202,7 @@
                                         </div>
                                     </div>
                                     <div style="width: 90px; flex-shrink: 0;">
+                                        <!-- FIX: Added dynamic 'qty_{{ $req->id }}' to the name attribute so the controller can fetch it -->
                                         <input type="number" class="input-modern text-center py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
                                                value="{{ min($req->quantity, $req->supply->quantity) }}" 
                                                min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" 

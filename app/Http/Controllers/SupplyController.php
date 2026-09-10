@@ -82,7 +82,6 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
-        // Pass the category back to the view so it opens the correct tab
         return redirect()->back()
             ->with('success', 'New item added successfully!')
             ->with('active_category', $newItem->category);
@@ -119,11 +118,36 @@ class SupplyController extends Controller
         ]);
 
         $item = Supply::findOrFail($id);
-        $item->update($validated);
+        
+        $item->fill($validated);
+        
+        $changes = $item->getDirty();
+        
+        $item->save();
 
-        \App\Models\ActivityLog::log('Inventory', "Updated details for item: {$item->name}");
+        if (!empty($changes)) {
+            $changeDetails = [];
+            foreach ($changes as $field => $newValue) {
+                if ($field === 'updated_at') continue; 
+                
+                $oldValue = $item->getOriginal($field);
+                
+                $oldValueStr = $oldValue === null || $oldValue === '' ? 'Empty' : $oldValue;
+                $newValueStr = $newValue === null || $newValue === '' ? 'Empty' : $newValue;
+                
+                $cleanField = ucwords(str_replace('_', ' ', $field));
+                
+                $changeDetails[] = "{$cleanField} ('{$oldValueStr}' ➔ '{$newValueStr}')";
+            }
+            
+            $changeString = implode(', ', $changeDetails);
+            $logMessage = "Updated {$item->name} | Changes: " . $changeString;
+        } else {
+            $logMessage = "Updated details for item: {$item->name} (No actual values changed)";
+        }
 
-        // Pass the category back to the view so it opens the correct tab
+        \App\Models\ActivityLog::log('Inventory', $logMessage);
+
         return redirect()->back()
             ->with('success', "Item details updated successfully for {$item->name}!")
             ->with('active_category', $item->category);
@@ -299,7 +323,6 @@ class SupplyController extends Controller
         $item = Supply::findOrFail($id);
         $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
         
-        // FIX: Ignore 0 quantity issues
         $releases = DepartmentRequest::where('supply_id', $id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0)
@@ -415,20 +438,20 @@ class SupplyController extends Controller
         $cardsData = [];
 
         foreach ($matchingSupplies as $supply) {
-            // FIX: Added ->where('quantity', '>', 0) to hide 0-qty ghost entries
+            // FIX: Using created_at and id strictly to match chronological request order
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
-                ->whereMonth('updated_at', $month_filter)
-                ->whereYear('updated_at', date('Y'))
-                ->orderBy('updated_at', 'asc')
+                ->whereMonth('created_at', $month_filter)
+                ->whereYear('created_at', date('Y'))
+                ->orderBy('created_at', 'asc')
+                ->orderBy('id', 'asc') 
                 ->get();
 
-            // FIX: Added ->where('quantity', '>', 0) here as well for flawless math
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
-                ->where('updated_at', '>=', date('Y') . '-' . $month_filter . '-01 00:00:00')
+                ->where('created_at', '>=', date('Y') . '-' . $month_filter . '-01 00:00:00')
                 ->sum('quantity');
 
             $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;
@@ -448,7 +471,7 @@ class SupplyController extends Controller
             $cardsData[] = [
                 'item' => $supply,
                 'balance_forwarded' => $balance_forwarded,
-                'releases' => $formattedReleases->reverse()
+                'releases' => $formattedReleases 
             ];
         }
 
@@ -468,12 +491,10 @@ class SupplyController extends Controller
         return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
     }
 
-    // --- NEW BIN CARD REPORT ---
     public function bincard($id)
     {
         $item = Supply::findOrFail($id);
         
-        // FIX: Ignore 0 quantity issues
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0)
@@ -507,7 +528,6 @@ class SupplyController extends Controller
         return view('bincard', compact('item', 'transactions'));
     }
 
-    // --- NEW REPORT ON ACTUAL PHYSICAL COUNT (RAPC) ---
     public function rapc($id)
     {
         $baseItem = Supply::findOrFail($id);
@@ -525,7 +545,6 @@ class SupplyController extends Controller
         $currentYear = (int) date('Y');
 
         foreach ($items as $item) {
-            // FIX: Ignore 0 quantity issues
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
@@ -570,11 +589,10 @@ class SupplyController extends Controller
 
     public function liveInventory()
     {
-        // Fetches only the numbers we need to keep the background check lightning fast
         $supplies = \App\Models\Supply::select('id', 'quantity', 'reorder_level')->get();
         return response()->json($supplies);
     }
-    // --- SUPERADMIN STOCK ADJUSTMENT ---
+    
     public function adjustStock(Request $request, $id)
     {
         $request->validate([
@@ -595,7 +613,6 @@ class SupplyController extends Controller
             
             $item->quantity -= $qty;
             
-            // CREATES A PAPER TRAIL FOR THE STOCK CARD
             \App\Models\DepartmentRequest::create([
                 'batch_id' => 'ADJ-' . strtoupper(\Illuminate\Support\Str::random(5)),
                 'department_name' => 'SYSTEM ADJUSTMENT',
@@ -610,7 +627,6 @@ class SupplyController extends Controller
             \App\Models\ActivityLog::log('Inventory', "Adjusted stock DOWN for {$item->name} by {$qty}. Reason: {$reason}");
             
         } else {
-            // Addition: Math works inherently by bumping the Balance Forwarded
             $item->quantity += $qty;
             \App\Models\ActivityLog::log('Inventory', "Adjusted stock UP for {$item->name} by {$qty}. Reason: {$reason}");
         }
@@ -622,7 +638,6 @@ class SupplyController extends Controller
             ->with('active_category', $item->category);
     }
 
-    // --- NEW ITEM USAGE (TOP REQUESTORS) REPORT ---
     public function printItemUsage(Request $request)
     {
         $request->validate([
@@ -633,10 +648,9 @@ class SupplyController extends Controller
 
         $item = Supply::findOrFail($request->item_id);
         
-        // Query approved requests, filter by item and date, group by department, and sum the quantity
         $usageData = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
-            ->where('quantity', '>', 0) // Ignores ghost entries
+            ->where('quantity', '>', 0)
             ->whereMonth('updated_at', $request->month)
             ->whereYear('updated_at', $request->year)
             ->selectRaw('department_name, SUM(quantity) as total_requested')
