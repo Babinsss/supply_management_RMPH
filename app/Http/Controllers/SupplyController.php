@@ -183,19 +183,17 @@ class SupplyController extends Controller
             return redirect()->back()->with('warning', 'This request has already been processed.');
         }
 
-        // --- NEW FIFO QUEUE CHECK ---
-        foreach ($batchReqs as $req) {
-            // Check if there is an older pending request for this exact item
-            $olderPendingExists = DepartmentRequest::where('supply_id', $req->supply_id)
-                ->where('status', 'Pending')
-                ->where('created_at', '<', $req->created_at)
-                ->exists();
+        // --- NEW STRICT GLOBAL FIFO QUEUE CHECK ---
+        $batchTime = $batchReqs->first()->created_at;
+        
+        $olderPendingExists = DepartmentRequest::where('status', 'Pending')
+            ->where('created_at', '<', $batchTime)
+            ->exists();
 
-            if ($olderPendingExists) {
-                return redirect()->back()->with('danger', "Strict Queue Enforced: Cannot approve! There is an older pending request for {$req->supply->name} that must be processed first.");
-            }
+        if ($olderPendingExists) {
+            return redirect()->back()->with('danger', "Cannot approve! You must process the oldest pending hospital request first.");
         }
-        // -----------------------------
+        // ------------------------------------------
 
         foreach ($batchReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
