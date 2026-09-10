@@ -227,7 +227,43 @@
     @endforeach
 
     <x-slot name="scripts">
+        <!-- NEW: SweetAlert2 CDN for modern pop-ups -->
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
         <script>
+            // --- SMART NOTIFICATION HANDLERS ---
+            @if(session('danger'))
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Queue Violation!',
+                    text: "{!! session('danger') !!}",
+                    confirmButtonColor: '#dc3545',
+                    confirmButtonText: 'Understood',
+                    backdrop: `rgba(220, 53, 69, 0.1)` // Adds a slight red tint to the background
+                });
+            @endif
+
+            @if(session('success'))
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: "{!! session('success') !!}",
+                    confirmButtonColor: '#198754',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            @endif
+
+            @if(session('warning'))
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Heads Up!',
+                    text: "{!! session('warning') !!}",
+                    confirmButtonColor: '#ffc107'
+                });
+            @endif
+            // -----------------------------------
+
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
                 fetch('/api/pending-count')

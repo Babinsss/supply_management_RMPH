@@ -20,8 +20,11 @@ class SupplyController extends Controller
     {
         $supplies = Supply::all();
         
+        // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
-            ->orderBy('created_at', 'desc')
+            ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
+            ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
+            ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
             ->get();
 
         $groupedBatches = [];
@@ -179,6 +182,20 @@ class SupplyController extends Controller
         if ($batchReqs->first()->status !== 'Pending') {
             return redirect()->back()->with('warning', 'This request has already been processed.');
         }
+
+        // --- NEW FIFO QUEUE CHECK ---
+        foreach ($batchReqs as $req) {
+            // Check if there is an older pending request for this exact item
+            $olderPendingExists = DepartmentRequest::where('supply_id', $req->supply_id)
+                ->where('status', 'Pending')
+                ->where('created_at', '<', $req->created_at)
+                ->exists();
+
+            if ($olderPendingExists) {
+                return redirect()->back()->with('danger', "Strict Queue Enforced: Cannot approve! There is an older pending request for {$req->supply->name} that must be processed first.");
+            }
+        }
+        // -----------------------------
 
         foreach ($batchReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
@@ -389,9 +406,14 @@ class SupplyController extends Controller
     
     public function approverDashboard()
     {
-        $allRequests = DepartmentRequest::with(['supply', 'issuer'])->orderBy('created_at', 'desc')->get();
+        // Apply the same Smart Sort to the Approver view
+        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
+            ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
+            ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
+            ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
+            ->get();
         
-        $requestsCollection = $allRequests->groupBy('batch_id')->map(function ($items, $batchId) {
+        $requestsCollection = collect($allRequests)->groupBy('batch_id')->map(function ($items, $batchId) {
             return [
                 'batch_id' => $batchId,
                 'created_at' => $items->first()->created_at,
