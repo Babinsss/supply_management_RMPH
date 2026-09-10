@@ -298,7 +298,14 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
-        $releases = DepartmentRequest::where('supply_id', $id)->where('status', 'Approved')->orderBy('created_at', 'asc')->get();
+        
+        // FIX: Ignore 0 quantity issues
+        $releases = DepartmentRequest::where('supply_id', $id)
+            ->where('status', 'Approved')
+            ->where('quantity', '>', 0)
+            ->orderBy('created_at', 'asc')
+            ->get();
+            
         $filename = "Stockcard_{$item->name}_{$monthFilter}.csv";
 
         $headers = [
@@ -408,21 +415,26 @@ class SupplyController extends Controller
         $cardsData = [];
 
         foreach ($matchingSupplies as $supply) {
+            // FIX: Added ->where('quantity', '>', 0) to hide 0-qty ghost entries
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
+                ->where('quantity', '>', 0) 
                 ->whereMonth('updated_at', $month_filter)
                 ->whereYear('updated_at', date('Y'))
                 ->orderBy('updated_at', 'asc')
                 ->get();
 
+            // FIX: Added ->where('quantity', '>', 0) here as well for flawless math
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
+                ->where('quantity', '>', 0)
                 ->where('updated_at', '>=', date('Y') . '-' . $month_filter . '-01 00:00:00')
                 ->sum('quantity');
 
             $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;
             $tempBalance = $balance_forwarded;
             $formattedReleases = collect();
+            
             foreach ($releasesAsc as $release) {
                 $tempBalance -= $release->quantity;
                 $release->running_balance = $tempBalance;
@@ -461,8 +473,10 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         
+        // FIX: Ignore 0 quantity issues
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
+            ->where('quantity', '>', 0)
             ->orderBy('updated_at', 'asc')
             ->get();
 
@@ -498,50 +512,34 @@ class SupplyController extends Controller
     {
         $baseItem = Supply::findOrFail($id);
 
-        // 1. Group items by SUPPLIER
         if ($baseItem->supplier) {
-            $items = Supply::where('supplier', $baseItem->supplier)
-                           ->orderBy('name', 'asc')
-                           ->get();
+            $items = Supply::where('supplier', $baseItem->supplier)->orderBy('name', 'asc')->get();
         } else {
             $items = collect([$baseItem]);
         }
 
-        // 2. Extract and combine all unique RIS Numbers and Dates
-        $risNumbers = $items->pluck('ris_number')
-                            ->filter()
-                            ->map(function($ris) { return trim($ris); })
-                            ->unique()
-                            ->implode(', ');
+        $risNumbers = $items->pluck('ris_number')->filter()->map(function($ris) { return trim($ris); })->unique()->implode(', ');
+        $risDates = $items->pluck('date_delivered')->filter()->map(function($d) { return \Carbon\Carbon::parse($d)->format('m/d/Y'); })->unique()->implode(', ');
 
-        $risDates = $items->pluck('date_delivered')
-                          ->filter()
-                          ->map(function($d) { return \Carbon\Carbon::parse($d)->format('m/d/Y'); })
-                          ->unique()
-                          ->implode(', ');
-
-        // 3. Calculate End-of-Month historical balances
         $currentMonth = (int) date('m');
         $currentYear = (int) date('Y');
 
         foreach ($items as $item) {
+            // FIX: Ignore 0 quantity issues
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
+                ->where('quantity', '>', 0)
                 ->whereYear('updated_at', $currentYear)
                 ->get();
 
             $monthlyBalances = [];
             for ($m = 1; $m <= 12; $m++) {
-                
-                // NEW: Skip January (1) through July (7) for the launch year 2026
                 if ($currentYear == 2026 && $m < 8) {
                     $monthlyBalances[$m] = ''; 
                 } 
-                // Skip future months
                 elseif ($m > $currentMonth) {
                     $monthlyBalances[$m] = ''; 
                 } 
-                // Normal Calculation
                 else {
                     $releasesAfterM = $releasesThisYear->filter(function($req) use ($m) {
                         return \Carbon\Carbon::parse($req->updated_at)->month > $m;
@@ -554,5 +552,75 @@ class SupplyController extends Controller
         }
 
         return view('rapc', compact('baseItem', 'items', 'risNumbers', 'risDates'));
+    }
+    public function printPettyCashRequest(Request $request)
+    {
+        $data = $request->validate([
+            'department_name' => 'required|string',
+            'requested_by' => 'required|string',
+            // Update validations to expect arrays
+            'item_name' => 'required|array|min:1',
+            'item_name.*' => 'required|string',
+            'estimated_price' => 'required|array|min:1',
+            'estimated_price.*' => 'required|numeric',
+            'quantity' => 'required|array|min:1',
+            'quantity.*' => 'required|integer|min:1',
+            'purpose' => 'required|string',
+        ]);
+
+        return view('print_petty_cash_ris', compact('data'));
+    }
+    public function liveInventory()
+    {
+        // Fetches only the numbers we need to keep the background check lightning fast
+        $supplies = \App\Models\Supply::select('id', 'quantity', 'reorder_level')->get();
+        return response()->json($supplies);
+    }
+    // --- SUPERADMIN STOCK ADJUSTMENT ---
+    public function adjustStock(Request $request, $id)
+    {
+        $request->validate([
+            'action' => 'required|in:add,subtract',
+            'quantity' => 'required|integer|min:1',
+            'reason' => 'required|string|max:255'
+        ]);
+
+        $item = Supply::findOrFail($id);
+        $qty = (int) $request->input('quantity');
+        $action = $request->input('action');
+        $reason = strtoupper($request->input('reason'));
+
+        if ($action === 'subtract') {
+            if ($item->quantity < $qty) {
+                return redirect()->back()->with('danger', 'Cannot deduct more than the current stock available!');
+            }
+            
+            $item->quantity -= $qty;
+            
+            // CREATES A PAPER TRAIL FOR THE STOCK CARD
+            \App\Models\DepartmentRequest::create([
+                'batch_id' => 'ADJ-' . strtoupper(\Illuminate\Support\Str::random(5)),
+                'department_name' => 'SYSTEM ADJUSTMENT',
+                'requested_by' => $reason,
+                'supply_id' => $item->id,
+                'quantity' => $qty,
+                'purpose' => 'Superadmin correction',
+                'status' => 'Approved',
+                'issued_by' => \Illuminate\Support\Facades\Auth::id(),
+            ]);
+            
+            \App\Models\ActivityLog::log('Inventory', "Adjusted stock DOWN for {$item->name} by {$qty}. Reason: {$reason}");
+            
+        } else {
+            // Addition: Math works inherently by bumping the Balance Forwarded
+            $item->quantity += $qty;
+            \App\Models\ActivityLog::log('Inventory', "Adjusted stock UP for {$item->name} by {$qty}. Reason: {$reason}");
+        }
+
+        $item->save();
+
+        return redirect()->back()
+            ->with('success', "Stock successfully adjusted for {$item->name}!")
+            ->with('active_category', $item->category);
     }
 }

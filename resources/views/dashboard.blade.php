@@ -164,9 +164,31 @@
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <p class="text-muted-soft small mb-4">Adjust quantities before issuing. You cannot exceed stock.</p>
+                                
+                                @php
+                                    $hasOutOfStock = false;
+                                    $totalFulfillable = 0;
+                                    
+                                    // Check stock statuses before generating the list
+                                    foreach($batch['items'] as $req) {
+                                        if($req->supply->quantity <= 0) {
+                                            $hasOutOfStock = true;
+                                        }
+                                        $totalFulfillable += min($req->quantity, $req->supply->quantity);
+                                    }
+                                @endphp
+
+                                {{-- SMART WARNING BANNER --}}
+                                @if($hasOutOfStock)
+                                    <div class="alert alert-danger border-0 rounded-3 py-2 small fw-bold mb-3 shadow-sm">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Heads up! Some items in this request are already out of stock.
+                                    </div>
+                                @else
+                                    <p class="text-muted-soft small mb-4">Adjust quantities before issuing. You cannot exceed stock.</p>
+                                @endif
+
                                 @foreach($batch['items'] as $req)
-                                <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-4 border border-white border-2 shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-4 border border-white border-2 shadow-sm {{ $req->supply->quantity <= 0 ? 'opacity-75' : '' }}">
                                     <div class="pe-2">
                                         <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
                                         @if($req->supply->category)
@@ -174,19 +196,27 @@
                                                 {{ $req->supply->category }}
                                             </div>
                                         @endif
-                                        <div class="text-muted-soft small mt-1">Requested: <span class="fw-bold">{{ $req->quantity }}</span> | Stock: <span class="fw-bold">{{ $req->supply->quantity }}</span></div>
+                                        <div class="text-muted-soft small mt-1">
+                                            Requested: <span class="fw-bold">{{ $req->quantity }}</span> | 
+                                            Stock: <span class="fw-bold {{ $req->supply->quantity <= 0 ? 'text-danger' : 'text-dark' }}">{{ $req->supply->quantity }}</span>
+                                        </div>
                                     </div>
                                     <div style="width: 90px; flex-shrink: 0;">
                                         <input type="number" class="input-modern text-center py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
                                                value="{{ min($req->quantity, $req->supply->quantity) }}" 
-                                               min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" required>
+                                               min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" 
+                                               {{ $req->supply->quantity <= 0 ? 'readonly' : 'required' }}>
                                     </div>
                                 </div>
                                 @endforeach
                             </div>
                             <div class="modal-header border-0 pt-0 justify-content-end gap-2">
                                 <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-success btn-modern shadow-sm"><i class="bi bi-check-circle-fill me-2"></i> Approve & Issue</button>
+                                
+                                {{-- BUTTON DISABLES IF ALL ITEMS ARE 0 --}}
+                                <button type="submit" class="btn btn-success btn-modern shadow-sm" {{ $totalFulfillable <= 0 ? 'disabled title="Nothing to issue"' : '' }}>
+                                    <i class="bi bi-check-circle-fill me-2"></i> Approve & Issue
+                                </button>
                             </div>
                         </form>
                     </div>

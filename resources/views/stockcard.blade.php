@@ -181,7 +181,12 @@
                     <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $card['balance_forwarded'], 2) : '' }}</td>
                 </tr>
 
-                @foreach ($card['releases'] as $release)
+                @php
+                    // Sort releases chronologically (oldest to newest) so the balance cascades downward
+                    $sortedReleases = collect($card['releases'])->sortBy('created_at');
+                @endphp
+
+                @foreach ($sortedReleases as $release)
                 <tr>
                     <td>{{ \Carbon\Carbon::parse($release->created_at)->format('m/d/Y') }}</td>
                     <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>

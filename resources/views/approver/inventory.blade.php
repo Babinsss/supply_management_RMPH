@@ -4,32 +4,54 @@
     <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
         <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-eye-fill text-primary me-2"></i> Inventory Status</h5>
         
-        <div class="d-flex gap-2 align-items-center" style="width: 60%;">
+        <div class="d-flex gap-2 align-items-center justify-content-end flex-grow-1 ms-4">
             {{-- Search Bar --}}
-            <div class="input-group">
+            <div class="input-group flex-grow-1" style="max-width: 450px;">
                 <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
             
             {{-- Monthly Report Modal Trigger --}}
-            <button type="button" class="btn btn-outline-secondary btn-modern bg-white text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+            <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
                 <i class="bi bi-calendar-check me-1"></i> Monthly Report
             </button>
 
             {{-- Print Report Button (General) --}}
-            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern bg-white text-nowrap shadow-sm border">
+            <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern text-nowrap shadow-sm border">
                 <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
         </div>
     </div>
 
-    {{-- Category Segregation Filter Buttons --}}
-    <div class="d-flex flex-wrap gap-2 mb-4">
-        <button class="btn btn-sm btn-primary rounded-pill px-4 fw-bold shadow-sm filter-btn" onclick="setCategory('ALL', this)">All Items</button>
-        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('OFFICE SUPPLIES', this)">Office Supplies</button>
-        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MEDICAL SUPPLIES', this)">Medical Supplies</button>
-        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('JANITORIAL SUPPLIES', this)">Janitorial Supplies</button>
-        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold filter-btn" onclick="setCategory('MAINTENANCE EQUIPMENT', this)">Maintenance Equipment</button>
+    {{-- Dynamic Category & Supplier Filters (Matches Admin UI) --}}
+    <div class="d-flex justify-content-between flex-wrap gap-3 mb-4 align-items-center">
+        
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm rounded-pill px-4 fw-bold shadow-sm filter-btn btn-primary" onclick="setCategory('ALL', this)">All Items</button>
+            @php 
+                // Safely extract unique categories directly from the supplies list
+                $uniqueCategories = collect($supplies)->pluck('category')->filter()->unique()->sort(); 
+            @endphp
+            @foreach($uniqueCategories as $cat)
+                <button class="btn btn-sm rounded-pill px-3 fw-bold filter-btn btn-outline-primary" onclick="setCategory('{{ $cat }}', this)">
+                    {{ ucwords(strtolower($cat)) }}
+                </button>
+            @endforeach
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small fw-bold text-uppercase text-nowrap"><i class="bi bi-funnel-fill me-1"></i> Supplier:</span>
+            <select id="supplierFilter" class="form-select input-modern py-1 px-3 shadow-sm" style="border-radius: 20px; min-width: 220px;" onchange="filterInventory()">
+                <option value="ALL">All Suppliers</option>
+                @php 
+                    $uniqueSuppliers = collect($supplies)->pluck('supplier')->filter()->unique()->sort(); 
+                @endphp
+                @foreach($uniqueSuppliers as $supplier)
+                    <option value="{{ $supplier }}">{{ strtoupper($supplier) }}</option>
+                @endforeach
+            </select>
+        </div>
+        
     </div>
 
     {{-- Main Inventory Table (Read-Only) --}}
@@ -47,7 +69,7 @@
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}">
+                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
                             {{-- Item Name, Badge, Description, Supplier, Delivery, Expiry & PRICE --}}
                             <td>
                                 <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
@@ -105,13 +127,15 @@
                             
                             {{-- Smart Alert: Stock Quantity --}}
                             <td>
-                                <span class="fw-bold fs-5">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                                <span class="fw-bold fs-5 stock-qty" id="qty-{{ $item->id }}">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
                                 
-                                @if($item->quantity == 0)
-                                    <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
-                                @elseif($item->quantity <= $item->reorder_level)
-                                    <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
-                                @endif
+                                <span id="badge-{{ $item->id }}">
+                                    @if($item->quantity == 0)
+                                        <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
+                                    @elseif($item->quantity <= $item->reorder_level)
+                                        <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
+                                    @endif
+                                </span>
                             </td>
                             
                             {{-- RIS Number Column --}}
@@ -152,9 +176,7 @@
 
     {{-- Pagination Controls Container --}}
     <nav aria-label="Inventory Pagination" class="mb-5">
-        <ul class="pagination justify-content-end" id="paginationControls">
-            {{-- Injected dynamically via Javascript --}}
-        </ul>
+        <ul class="pagination justify-content-end" id="paginationControls"></ul>
     </nav>
 
     {{-- OUTSIDE ARCHITECTURE: Monthly Report Modal --}}
@@ -192,10 +214,9 @@
                             <label class="form-label text-muted small fw-bold text-uppercase">Category Filter</label>
                             <select id="reportCategory" class="form-select input-modern">
                                 <option value="ALL">All Categories</option>
-                                <option value="OFFICE SUPPLIES">OFFICE SUPPLIES</option>
-                                <option value="MEDICAL SUPPLIES">MEDICAL SUPPLIES</option>
-                                <option value="JANITORIAL SUPPLIES">JANITORIAL SUPPLIES</option>
-                                <option value="MEDICAL EQUIPMENT">MEDICAL EQUIPMENT</option>
+                                @foreach($uniqueCategories as $cat)
+                                    <option value="{{ $cat }}">{{ strtoupper($cat) }}</option>
+                                @endforeach
                             </select>
                         </div>
                     </div>
@@ -213,7 +234,6 @@
     {{-- Javascript for Filters, Pagination, & Printing --}}
     <x-slot name="scripts">
         <script>
-            // --- SEAMLESS PRINTING ---
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
@@ -222,30 +242,22 @@
                     document.body.appendChild(printFrame);
                 }
                 printFrame.src = url;
-                printFrame.onload = () => { 
-                    printFrame.contentWindow.focus(); 
-                    printFrame.contentWindow.print(); 
-                };
+                printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
             }
 
-            // --- MONTHLY REPORT LOGIC ---
             function printMonthlyReport() {
                 let month = document.getElementById('reportMonth').value;
                 let year = document.getElementById('reportYear').value;
                 let category = document.getElementById('reportCategory').value;
-                
                 let url = `/print-inventory?month=${month}&year=${year}&category=${encodeURIComponent(category)}`;
                 
                 let modalElement = document.getElementById('monthlyReportModal');
                 let modalInstance = bootstrap.Modal.getInstance(modalElement);
-                if(modalInstance) {
-                    modalInstance.hide();
-                }
-                
+                if(modalInstance) modalInstance.hide();
                 printDirectly(url);
             }
 
-            // --- FILTERING & PAGINATION LOGIC ---
+            // --- FILTERING & PAGINATION LOGIC (Matches Admin) ---
             let currentPage = 1;
             const rowsPerPage = 10;
             let currentCategory = 'ALL';
@@ -271,17 +283,20 @@
 
             function applyFiltersAndPagination() {
                 let searchText = document.getElementById('searchInput').value.toLowerCase();
+                let currentSupplier = document.getElementById('supplierFilter').value;
                 let allRows = document.querySelectorAll('.inventory-row');
                 let visibleRows = [];
 
                 allRows.forEach(row => {
                     let rowCategory = row.getAttribute('data-category');
+                    let rowSupplier = row.getAttribute('data-supplier') || '';
                     let rowText = row.innerText.toLowerCase();
                     
                     let matchesSearch = rowText.includes(searchText);
                     let matchesCategory = (currentCategory === 'ALL' || rowCategory === currentCategory);
+                    let matchesSupplier = (currentSupplier === 'ALL' || rowSupplier === currentSupplier);
 
-                    if (matchesSearch && matchesCategory) {
+                    if (matchesSearch && matchesCategory && matchesSupplier) {
                         visibleRows.push(row);
                     }
                     row.style.display = 'none';
@@ -316,18 +331,15 @@
                     html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
                                 <button class="page-link shadow-sm" onclick="changePage(${currentPage - 1})">Previous</button>
                              </li>`;
-                    
                     for (let i = 1; i <= totalPages; i++) {
                         html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
                                     <button class="page-link shadow-sm" onclick="changePage(${i})">${i}</button>
                                  </li>`;
                     }
-
                     html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
                                 <button class="page-link shadow-sm" onclick="changePage(${currentPage + 1})">Next</button>
                              </li>`;
                 }
-
                 container.innerHTML = html;
             }
 

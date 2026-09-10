@@ -95,7 +95,14 @@
                         </div>
 
                         <div class="p-4 bg-light rounded-4 mb-4 border border-white border-4 shadow-sm">
-                            <label class="form-label text-muted small fw-bold text-uppercase mb-3"><i class="bi bi-cart-plus me-2"></i>Add Items</label>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <label class="form-label text-muted small fw-bold text-uppercase mb-0"><i class="bi bi-cart-plus me-2"></i>Add Items</label>
+                                
+                                {{-- Petty Cash Trigger Button --}}
+                                <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" onclick="openPettyCashModal()">
+                                    <i class="bi bi-wallet2 me-1"></i> Request Petty Cash
+                                </button>
+                            </div>
                             
                             <select id="categorySelect" class="form-select input-modern mb-3" onchange="filterItemsByCategory()">
                                 <option value="" disabled selected>1. Select a Category...</option>
@@ -212,6 +219,68 @@
             </div>
         </div>
     </form>
+
+    {{-- PETTY CASH MANUAL REQUEST MODAL --}}
+    <div class="modal fade" id="pettyCashModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            {{-- FIX: Merged <form> with <div class="modal-content"> so the scrollbar activates --}}
+            <form action="/portal/petty-cash/print" method="POST" target="hiddenPettyCashFrame" id="pettyCashForm" class="modal-content bento-card p-2 border-0">
+                @csrf
+                <input type="hidden" name="department_name" id="pcDeptName">
+                <input type="hidden" name="requested_by" id="pcReqBy">
+
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bolder text-danger"><i class="bi bi-wallet2 me-2"></i> Petty Cash Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                {{-- This body will now scroll perfectly --}}
+                <div class="modal-body">
+                    <div class="alert alert-warning border-0 rounded-3 py-2 small fw-bold mb-3 shadow-sm">
+                        <i class="bi bi-info-circle-fill me-1"></i> Use this form to request items NOT in the standard inventory directory.
+                    </div>
+
+                    {{-- Container for dynamic item rows --}}
+                    <div id="pcItemsContainer">
+                        <div class="pc-item-row bg-light p-3 rounded-4 mb-3 border position-relative">
+                            <div class="mb-2 pe-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Est. Price (₱) <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" class="form-control input-modern" name="estimated_price[]" placeholder="0.00" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Quantity <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control input-modern" name="quantity[]" value="1" min="1" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill px-3 mb-3 shadow-sm" onclick="addPcItemRow()">
+                        <i class="bi bi-plus-lg me-1"></i> Add Another Item
+                    </button>
+
+                    <div class="mb-2">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Purpose / Justification <span class="text-danger">*</span></label>
+                        <textarea class="form-control input-modern" name="purpose" rows="2" placeholder="Why are these purchases necessary?" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger btn-modern shadow-sm" onclick="closePettyCashModal()">
+                        <i class="bi bi-printer-fill me-1"></i> Generate RIS
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Hidden Iframe for Petty Cash Printing --}}
+    <iframe name="hiddenPettyCashFrame" id="hiddenPettyCashFrame" style="width:0; height:0; border:none; position:absolute;"></iframe>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -394,6 +463,65 @@
             }
             printFrame.src = url;
             printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
+        }
+
+        // PETTY CASH MODAL LOGIC
+        function openPettyCashModal() {
+            let dept = document.getElementById('departmentSelect').value;
+            let reqBy = document.getElementById('requestedByInput').value;
+            
+            if(!dept) {
+                showToast("Please select your Department first.", "warning text-dark");
+                return;
+            }
+            
+            document.getElementById('pcDeptName').value = dept;
+            document.getElementById('pcReqBy').value = reqBy;
+            
+            let modal = new bootstrap.Modal(document.getElementById('pettyCashModal'));
+            modal.show();
+        }
+
+        function addPcItemRow() {
+            let container = document.getElementById('pcItemsContainer');
+            let newRow = document.createElement('div');
+            newRow.className = 'pc-item-row bg-light p-3 rounded-4 mb-3 border position-relative';
+            newRow.innerHTML = `
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-2" onclick="this.closest('.pc-item-row').remove()"></button>
+                <div class="mb-2 pe-4">
+                    <label class="form-label text-muted small fw-bold text-uppercase">Item Description <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control input-modern" name="item_name[]" placeholder="e.g. SSD 500GB Kingston" required>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Est. Price (₱) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" class="form-control input-modern" name="estimated_price[]" placeholder="0.00" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Quantity <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control input-modern" name="quantity[]" value="1" min="1" required>
+                    </div>
+                </div>
+            `;
+            container.appendChild(newRow);
+        }
+
+        function closePettyCashModal() {
+            // Give it 1 second to submit the form to the hidden iframe, then close and reset the modal
+            setTimeout(() => {
+                let modalInstance = bootstrap.Modal.getInstance(document.getElementById('pettyCashModal'));
+                if(modalInstance) {
+                    modalInstance.hide();
+                    document.getElementById('pettyCashForm').reset();
+                    
+                    // Reset modal back to only 1 item row
+                    let container = document.getElementById('pcItemsContainer');
+                    let rows = container.querySelectorAll('.pc-item-row');
+                    for (let i = 1; i < rows.length; i++) {
+                        rows[i].remove();
+                    }
+                }
+            }, 1000);
         }
     </script>
 </body>

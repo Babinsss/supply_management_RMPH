@@ -1,4 +1,6 @@
 <x-layouts.approver title="Dashboard | QMO Department">
+    
+    {{-- Top Stat Cards (Matching Admin UI) --}}
     <div class="row g-4 mb-4">
         <div class="col-md-6">
             <div class="bento-card bg-primary text-white d-flex justify-content-between align-items-center">
@@ -15,13 +17,23 @@
                     <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions Processed</p>
                     <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
                 </div>
-                <i class="bi bi-check-circle-fill fs-1 text-success opacity-25"></i>
+                <i class="bi bi-check2-all fs-1 text-primary opacity-25"></i>
             </div>
         </div>
     </div>
 
+    {{-- Requisitions Monitor --}}
     <div class="bento-card mb-5">
-        <h5 class="fw-bolder mb-4"><i class="bi bi-inbox-fill text-warning me-2"></i> Department Requisitions Monitor</h5>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-inbox-fill text-primary me-2"></i> Department Requisitions Monitor</h5>
+            
+            {{-- Search Bar (Matching Admin UI) --}}
+            <div class="input-group" style="max-width: 350px;">
+                <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="requestSearchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search department, item, or status..." onkeyup="filterRequests()">
+            </div>
+        </div>
+        
         <div class="table-responsive">
             <table class="table table-clean mb-0">
                 <thead>
@@ -34,7 +46,7 @@
                 </thead>
                 <tbody>
                     @forelse($requests as $batch)
-                    <tr>
+                    <tr class="request-row align-top">
                         <td>
                             @php $batchDate = $batch['created_at'] ?? $batch['items'][0]->created_at; @endphp
                             <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
@@ -45,7 +57,16 @@
                             <div class="text-muted-soft small">{{ $batch['requested_by'] }}</div>
                         </td>
                         <td>
-                            @foreach($batch['items'] as $req)
+                            {{-- Collapsible Items Logic (Matching Admin UI) --}}
+                            @php
+                                $displayLimit = 2;
+                                $totalItems = count($batch['items']);
+                                $firstItems = collect($batch['items'])->take($displayLimit);
+                                $remainingItems = collect($batch['items'])->skip($displayLimit);
+                            @endphp
+                            
+                            {{-- Always visible items --}}
+                            @foreach($firstItems as $req)
                                 <div class="mb-2">
                                     <div class="small fw-medium">
                                         <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
@@ -57,6 +78,29 @@
                                     @endif
                                 </div>
                             @endforeach
+
+                            {{-- Hidden items --}}
+                            @if($totalItems > $displayLimit)
+                                <div class="collapse" id="collapse-{{ $batch['batch_id'] }}">
+                                    @foreach($remainingItems as $req)
+                                        <div class="mb-2">
+                                            <div class="small fw-medium">
+                                                <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                            </div>
+                                            @if($req->supply->category)
+                                                <div class="text-muted-soft text-uppercase" style="font-size: 0.65rem; margin-left: 1.4rem; letter-spacing: 0.5px;">
+                                                    <i class="bi bi-tag"></i> {{ $req->supply->category }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                                
+                                {{-- Toggle Button --}}
+                                <button class="btn btn-sm btn-link text-decoration-none p-0 mt-1 fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ $batch['batch_id'] }}">
+                                    View all {{ $totalItems }} items <i class="bi bi-chevron-down ms-1"></i>
+                                </button>
+                            @endif
                         </td>
                         <td class="text-end">
                             @if($batch['status'] == 'Pending')
@@ -111,6 +155,21 @@
                         }
                     });
             }, 5000);
+
+            // Added Search Filter Logic
+            function filterRequests() {
+                let input = document.getElementById('requestSearchInput').value.toLowerCase();
+                let rows = document.querySelectorAll('.request-row');
+                
+                rows.forEach(row => {
+                    let textContent = row.innerText.toLowerCase();
+                    if (textContent.includes(input)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            }
         </script>
     </x-slot>
 </x-layouts.approver>

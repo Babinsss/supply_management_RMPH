@@ -5,14 +5,6 @@
         </h5>
         
         <div class="d-flex align-items-center gap-3">
-            <div class="bg-success bg-opacity-10 text-success px-4 py-2 rounded-3 border border-success border-opacity-25">
-                <span class="small fw-bold text-uppercase d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">Current Balance</span>
-                <span class="fs-4 fw-bolder">₱{{ number_format($balance, 2) }}</span>
-            </div>
-            
-            <button class="btn btn-outline-success btn-modern shadow-sm border" data-bs-toggle="modal" data-bs-target="#replenishModal">
-                <i class="bi bi-plus-circle-fill me-1"></i> Replenish Fund
-            </button>
             <button class="btn btn-danger btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#expenseModal">
                 <i class="bi bi-cart-dash-fill me-1"></i> Record Expense
             </button>
@@ -48,11 +40,7 @@
                             <div class="text-muted small">{{ $txn->created_at->format('h:i A') }}</div>
                         </td>
                         <td>
-                            @if($txn->type == 'Replenishment')
-                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-1">Replenishment</span>
-                            @else
-                                <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-1">Expense</span>
-                            @endif
+                            <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-1">Expense</span>
                         </td>
                         <td>
                             <span class="fw-bold text-dark">{{ $txn->description }}</span>
@@ -64,8 +52,8 @@
                         </td>
                         <td class="text-muted">{{ $txn->receipt_reference ?: '-' }}</td>
                         <td><span class="text-muted small fw-bold"><i class="bi bi-person-circle me-1"></i>{{ $txn->processor->name ?? 'System' }}</span></td>
-                        <td class="fw-bolder {{ $txn->type == 'Replenishment' ? 'text-success' : 'text-danger' }}">
-                            {{ $txn->type == 'Replenishment' ? '+' : '-' }}₱{{ number_format($txn->amount, 2) }}
+                        <td class="fw-bolder text-danger">
+                            -₱{{ number_format($txn->amount, 2) }}
                         </td>
                         <td class="text-end">
                             <button type="button" onclick="printDirectly('/petty-cash/print/{{ $txn->id }}')" class="btn btn-sm btn-light btn-modern border shadow-sm text-primary" title="Print Voucher">
@@ -74,7 +62,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="7" class="text-center py-5 text-muted fw-medium">No petty cash transactions yet.</td></tr>
+                    <tr><td colspan="7" class="text-center py-5 text-muted fw-medium">No petty cash requests yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -87,14 +75,13 @@
             <div class="modal-content bento-card p-2 border-0">
                 <form action="/petty-cash" method="POST">
                     @csrf
-                    <input type="hidden" name="type" value="Expense">
                     <div class="modal-header border-0 pb-0">
                         <h5 class="fw-bolder text-danger"><i class="bi bi-cart-dash-fill me-2"></i> Record Expense</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Amount Spent (₱) <span class="text-danger">*</span></label>
+                            <label class="form-label text-muted small fw-bold text-uppercase">Price (₱) <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" class="form-control input-modern" name="amount" required>
                         </div>
                         <div class="mb-3">
@@ -107,16 +94,12 @@
                         </div>
                         
                         <hr class="border-light my-3">
-                        <p class="text-dark fw-bold mb-2 small"><i class="bi bi-box-seam text-primary me-1"></i> Inventory Integration</p>
+                        <p class="text-dark fw-bold mb-2 small"><i class="bi bi-box-seam text-primary me-1"></i> Inventory Integration <span class="text-danger">*</span></p>
                         
-                        {{-- TOGGLE RADIO BUTTONS --}}
+                        {{-- TOGGLE RADIO BUTTONS (Strict Compliance) --}}
                         <div class="mb-3 d-flex flex-wrap gap-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeNone" value="none" checked onchange="toggleInvMode()">
-                                <label class="form-check-label small fw-bold" for="modeNone">Do not link</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeExisting" value="existing" onchange="toggleInvMode()">
+                                <input class="form-check-input" type="radio" name="inventory_mode" id="modeExisting" value="existing" checked onchange="toggleInvMode()">
                                 <label class="form-check-label small fw-bold text-primary" for="modeExisting">Add to Existing Item</label>
                             </div>
                             <div class="form-check">
@@ -125,8 +108,8 @@
                             </div>
                         </div>
 
-                        {{-- EXISTING ITEM DROPDOWN (Hidden by default) --}}
-                        <div id="existingFields" style="display: none;" class="mb-2">
+                        {{-- EXISTING ITEM DROPDOWN --}}
+                        <div id="existingFields" class="mb-2">
                             <select class="form-select input-modern" name="supply_id">
                                 <option value="" disabled selected>Select existing item...</option>
                                 @foreach($supplies as $item)
@@ -135,7 +118,7 @@
                             </select>
                         </div>
 
-                        {{-- NEW ITEM FIELDS (Hidden by default) --}}
+                        {{-- NEW ITEM FIELDS --}}
                         <div id="newFields" style="display: none;" class="mb-2">
                             <input type="text" class="form-control input-modern mb-2" name="new_item_name" placeholder="Item Name (e.g. SSD 500GB)">
                             <select class="form-select input-modern" name="new_item_category">
@@ -146,9 +129,9 @@
                             </select>
                         </div>
 
-                        {{-- SHARED QUANTITY FIELD (Hidden by default) --}}
-                        <div id="qtyField" style="display: none;" class="mb-2">
-                            <input type="number" class="form-control input-modern" name="quantity" placeholder="Quantity Bought" min="1">
+                        {{-- SHARED QUANTITY FIELD --}}
+                        <div id="qtyField" class="mb-2">
+                            <input type="number" class="form-control input-modern" name="quantity" placeholder="Quantity Bought" min="1" required>
                         </div>
 
                     </div>
@@ -161,55 +144,14 @@
         </div>
     </div>
 
-    {{-- REPLENISH MODAL --}}
-    <div class="modal fade" id="replenishModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-2 border-0">
-                <form action="/petty-cash" method="POST">
-                    @csrf
-                    <input type="hidden" name="type" value="Replenishment">
-                    <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-success"><i class="bi bi-plus-circle-fill me-2"></i> Replenish Fund</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Amount Added (₱) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" class="form-control input-modern" name="amount" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Source / Description <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control input-modern" name="description" value="Fund Replenishment" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Voucher / Check No. <span class="fw-normal text-lowercase">(Optional)</span></label>
-                            <input type="text" class="form-control input-modern" name="receipt_reference" placeholder="e.g. CHK-998877">
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success btn-modern shadow-sm">Add Funds</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     <x-slot name="scripts">
         <script>
-            // Script to toggle the inventory inputs dynamically
             function toggleInvMode() {
                 let mode = document.querySelector('input[name="inventory_mode"]:checked').value;
-                let existingFields = document.getElementById('existingFields');
-                let newFields = document.getElementById('newFields');
-                let qtyField = document.getElementById('qtyField');
-
-                existingFields.style.display = (mode === 'existing') ? 'block' : 'none';
-                newFields.style.display = (mode === 'new') ? 'block' : 'none';
-                qtyField.style.display = (mode !== 'none') ? 'block' : 'none';
+                document.getElementById('existingFields').style.display = (mode === 'existing') ? 'block' : 'none';
+                document.getElementById('newFields').style.display = (mode === 'new') ? 'block' : 'none';
             }
 
-            // Script for hidden printing
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {

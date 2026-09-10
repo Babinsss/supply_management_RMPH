@@ -13,7 +13,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
     
-    // --- PETTY CASH ROUTES ---
+    // NEW: Live Inventory Sync Route
+    Route::get('/api/inventory/live', [SupplyController::class, 'liveInventory']); 
+    
+    // --- PETTY CASH ADMIN LEDGER ROUTES ---
     Route::get('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'index']);
     Route::post('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'store']);
     Route::get('/petty-cash/print/{id}', [App\Http\Controllers\PettyCashController::class, 'printReceipt']);
@@ -21,7 +24,7 @@ Route::middleware(['auth'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| ICT SECTION (ADMIN) ROUTES
+| SUPPLY SECTION (ADMIN) ROUTES
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'role:admin'])->group(function () {
@@ -76,6 +79,7 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
     Route::get('/master-data/department/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteDepartment']);
     Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
     Route::get('/ris-archive', [App\Http\Controllers\SuperAdminController::class, 'risArchive'])->name('superadmin.ris_archive');
+    Route::post('/inventory/adjust/{id}', [App\Http\Controllers\SupplyController::class, 'adjustStock']);
 });
 
 /*
@@ -85,7 +89,10 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
 */
 Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('portal');
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
-Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']); // Moved here for public access
+Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
+
+// NEW: Petty Cash Manual Request Print Route
+Route::post('/portal/petty-cash/print', [SupplyController::class, 'printPettyCashRequest']);
 
 Auth::routes();
 

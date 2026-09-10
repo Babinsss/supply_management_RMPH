@@ -38,9 +38,13 @@
             </div>
             
             <div class="d-flex flex-wrap align-items-center gap-2 nav-actions">
-                {{-- These link strictly to her specific routes --}}
-                <a href="/approver/dashboard" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-grid-fill me-2"></i>Dashboard</a>
-                <a href="/approver/inventory" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-box-seam-fill me-2"></i>View Inventory</a>
+                {{-- Dynamic Active States matching Admin Layout --}}
+                <a href="/approver/dashboard" class="btn btn-modern shadow-sm border {{ request()->is('approver/dashboard') ? 'btn-primary' : 'btn-light' }}">
+                    <i class="bi bi-grid-fill me-2"></i>Dashboard
+                </a>
+                <a href="/approver/inventory" class="btn btn-modern shadow-sm border {{ request()->is('approver/inventory') ? 'btn-primary' : 'btn-light' }}">
+                    <i class="bi bi-box-seam-fill me-2"></i>View Inventory
+                </a>
                 
                 {{-- User Profile & Logout --}}
                 <div class="ms-md-3 d-flex align-items-center gap-3 border-start ps-md-3 pt-2 pt-md-0 border-secondary-subtle">
@@ -57,8 +61,8 @@
             </div>
         </nav>
 
-        @if(session('success')) <div class="alert alert-success bento-card mb-4 text-success fw-bold py-3"><i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}</div> @endif
-        @if(session('danger')) <div class="alert alert-danger bento-card mb-4 text-danger fw-bold py-3"><i class="bi bi-x-circle-fill me-2"></i>{{ session('danger') }}</div> @endif
+        @if(session('success')) <div class="alert alert-success bento-card mb-4 text-success fw-bold py-3 shadow-sm border-0"><i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}</div> @endif
+        @if(session('danger')) <div class="alert alert-danger bento-card mb-4 text-danger fw-bold py-3 shadow-sm border-0"><i class="bi bi-x-circle-fill me-2"></i>{{ session('danger') }}</div> @endif
 
         {{ $slot }}
     </div>

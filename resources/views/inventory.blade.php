@@ -2,13 +2,17 @@
     
     {{-- Top Action Bar with Search & Buttons --}}
     <div class="d-flex justify-content-between align-items-center mb-3 bento-card py-3">
-        <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
+        <h5 class="fw-bolder mb-0 text-dark text-nowrap"><i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory</h5>
         
-        <div class="d-flex gap-2 align-items-center" style="width: 60%;">
-            <div class="input-group">
+        <div class="d-flex gap-2 align-items-center justify-content-end flex-grow-1 ms-4">
+            <div class="input-group flex-grow-1" style="max-width: 450px;">
                 <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
                 <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
             </div>
+            
+            <a href="/petty-cash" class="btn btn-outline-success btn-modern text-nowrap shadow-sm border">
+                <i class="bi bi-wallet2 me-1"></i> Petty Cash
+            </a>
             
             <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
                 <i class="bi bi-calendar-check me-1"></i> Monthly Report
@@ -27,10 +31,8 @@
     {{-- Category & Supplier Filters --}}
     <div class="d-flex justify-content-between flex-wrap gap-3 mb-4 align-items-center">
         
-        {{-- Category Pills (All Items Removed, Dynamic Active State Added) --}}
         <div class="d-flex flex-wrap gap-2">
             @php 
-                // Determine which category should be active (defaults to the first one)
                 $activeCategory = session('active_category', $categories->first()->name ?? 'UNCATEGORIZED');
             @endphp
 
@@ -42,7 +44,6 @@
             @endforeach
         </div>
 
-        {{-- Supplier Dropdown Filter --}}
         <div class="d-flex align-items-center gap-2">
             <span class="text-muted small fw-bold text-uppercase text-nowrap"><i class="bi bi-funnel-fill me-1"></i> Supplier:</span>
             <select id="supplierFilter" class="form-select input-modern py-1 px-3 shadow-sm" style="border-radius: 20px; min-width: 220px;" onchange="filterInventory()">
@@ -73,7 +74,7 @@
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        <tr class="inventory-row" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
+                        <tr class="inventory-row" id="item-row-{{ $item->id }}" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
                             <td>
                                 <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
                                 
@@ -125,14 +126,17 @@
                                 </div>
                             </td>
                             
+                            {{-- ID tags added for live AJAX syncing --}}
                             <td>
-                                <span class="fw-bold fs-5">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                                <span class="fw-bold fs-5 stock-qty" id="qty-{{ $item->id }}" style="transition: color 0.5s ease;">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
                                 
-                                @if($item->quantity == 0)
-                                    <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
-                                @elseif($item->quantity <= $item->reorder_level)
-                                    <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
-                                @endif
+                                <span id="badge-{{ $item->id }}">
+                                    @if($item->quantity == 0)
+                                        <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
+                                    @elseif($item->quantity <= $item->reorder_level)
+                                        <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
+                                    @endif
+                                </span>
                             </td>
                             
                             <td>
@@ -161,6 +165,13 @@
                                         <i class="bi {{ $item->is_visible ? 'bi-eye-fill' : 'bi-eye-slash-fill' }}"></i>
                                     </button>
                                 </form>
+                                
+                                {{-- SUPERADMIN ADJUSTMENT BUTTON (Hidden from normal admins) --}}
+                                @if(auth()->check() && auth()->user()->role === 'superadmin')
+                                    <button type="button" class="btn btn-sm btn-light btn-modern text-warning border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#adjustModal-{{ $item->id }}" title="Superadmin Stock Adjustment">
+                                        <i class="bi bi-sliders"></i>
+                                    </button>
+                                @endif
 
                                 <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')" title="Bin Card">
                                     <i class="bi bi-card-list"></i>
@@ -311,7 +322,7 @@
         </div>
     </div>
 
-    {{-- Edit & Delete Modals Loop --}}
+    {{-- Edit, Delete, & Adjustment Modals Loop --}}
     @foreach($supplies as $item)
         <div class="modal fade text-start" id="editModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -333,10 +344,13 @@
                                     <label class="form-label text-muted small fw-bold text-uppercase">Description / Type</label>
                                     <input type="text" class="input-modern" name="description" value="{{ $item->description }}">
                                 </div>
+                                
+                                {{-- EDIT FIX: Stock Quantity field is now strictly readonly --}}
                                 <div class="col-md-3">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Stock Quantity</label>
-                                    <input type="number" class="input-modern" name="quantity" value="{{ $item->quantity }}" min="0" required>
+                                    <input type="number" class="input-modern bg-light text-muted" name="quantity" value="{{ $item->quantity }}" min="0" readonly required title="Quantity can only be updated via the Petty Cash Ledger or Requisitions">
                                 </div>
+                                
                                 <div class="col-md-3">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Unit Price (₱)</label>
                                     <input type="number" step="0.01" class="input-modern" name="unit_price" value="{{ $item->unit_price }}">
@@ -402,6 +416,55 @@
                 </div>
             </div>
         </div>
+
+        {{-- SUPERADMIN ADJUSTMENT MODAL (Hidden from normal admins) --}}
+        @if(auth()->check() && auth()->user()->role === 'superadmin')
+        <div class="modal fade text-start" id="adjustModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bento-card p-2 border-0">
+                    <form action="/superadmin/inventory/adjust/{{ $item->id }}" method="POST">
+                        @csrf
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="fw-bolder text-warning"><i class="bi bi-sliders me-2"></i> Stock Adjustment</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body py-3">
+                            <div class="alert alert-warning border-0 rounded-3 py-2 small fw-bold shadow-sm mb-3">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Current Stock: {{ $item->quantity }}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Action <span class="text-danger">*</span></label>
+                                <select class="form-select input-modern fw-bold" name="action" required>
+                                    <option value="subtract" class="text-danger">Deduct Stock (-)</option>
+                                    <option value="add" class="text-success">Add Stock (+)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Quantity to Adjust <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control input-modern" name="quantity" min="1" required>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Reason for Correction <span class="text-danger">*</span></label>
+                                <select class="form-select input-modern" name="reason" required>
+                                    <option value="" disabled selected>Select reason...</option>
+                                    <option value="PHYSICAL COUNT DISCREPANCY">Physical Count Discrepancy</option>
+                                    <option value="DATA ENTRY ERROR">Data Entry Error (Correction)</option>
+                                    <option value="DAMAGED / EXPIRED">Damaged / Expired Item</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bolder"><i class="bi bi-check2-circle me-1"></i> Confirm Adjustment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        @endif
     @endforeach
 
     <x-slot name="scripts">
@@ -523,6 +586,39 @@
 
                 container.innerHTML = html;
             }
+
+            // --- LIVE INVENTORY SYNC (EVERY 10 SECONDS) ---
+            setInterval(() => {
+                fetch('/api/inventory/live')
+                    .then(response => response.json())
+                    .then(data => {
+                        data.forEach(item => {
+                            let qtyElement = document.getElementById(`qty-${item.id}`);
+                            let badgeElement = document.getElementById(`badge-${item.id}`);
+                            
+                            if(qtyElement) {
+                                // If quantity changed, update it and flash blue
+                                if(qtyElement.innerText != item.quantity) {
+                                    qtyElement.innerText = item.quantity;
+                                    qtyElement.style.color = '#0d6efd'; // Bootstrap Primary Blue
+                                    
+                                    // Reset color back to normal after 1.5 seconds
+                                    setTimeout(() => { qtyElement.style.color = ''; }, 1500);
+                                }
+
+                                // Update warning badges dynamically
+                                if(item.quantity == 0) {
+                                    badgeElement.innerHTML = `<span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>`;
+                                } else if(item.quantity <= item.reorder_level) {
+                                    badgeElement.innerHTML = `<span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>`;
+                                } else {
+                                    badgeElement.innerHTML = '';
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error syncing live inventory:', error));
+            }, 10000); // 10,000 milliseconds = 10 seconds
 
             document.addEventListener('DOMContentLoaded', () => {
                 applyFiltersAndPagination();
