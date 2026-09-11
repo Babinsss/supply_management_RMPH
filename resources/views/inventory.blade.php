@@ -1,6 +1,8 @@
 <x-layouts.admin title="Inventory Management | Supply Hub">
 
-    {{-- ADMIN TOOLBAR --}}
+    {{-- ========================================== --}}
+    {{-- ADMIN COMMAND TOOLBAR                      --}}
+    {{-- ========================================== --}}
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 bento-card py-3 bg-body">
         <h5 class="fw-bolder mb-0 text-body-emphasis">
             <i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Command Center
@@ -37,7 +39,9 @@
         </div>
     </div>
     
-    {{-- DYNAMIC DATA CALCULATION --}}
+    {{-- ========================================== --}}
+    {{-- DYNAMIC DATA CALCULATION                   --}}
+    {{-- ========================================== --}}
     @php
         // 1. Total Asset Value
         $totalAssetValue = $supplies->sum(function($item) {
@@ -53,7 +57,7 @@
         $goodStockCount = $totalItems - $lowStockCount;
         $healthPercentage = $totalItems > 0 ? round(($goodStockCount / $totalItems) * 100) : 0;
 
-        // 3. Category Distribution for Donut Chart
+        // 3. Category Distribution
         $categoryData = $supplies->groupBy(function($item) {
             return $item->category ?: 'Uncategorized';
         })->map->count();
@@ -92,7 +96,9 @@
         </div>
     @endif
 
-    <!-- COMMAND CENTER ANALYTICS HEADER -->
+    {{-- ========================================== --}}
+    {{-- COMMAND CENTER ANALYTICS HEADER            --}}
+    {{-- ========================================== --}}
     <div class="row g-4 mb-5">
         {{-- CARD 1: Total Asset Value --}}
         <div class="col-md-4">
@@ -117,18 +123,30 @@
             </div>
         </div>
 
-        {{-- CARD 3: Category Distribution Donut --}}
+        {{-- CARD 3: Top Categories (Lightweight HTML) --}}
         <div class="col-md-4">
-            <div class="bento-card bg-body border border-secondary-subtle position-relative p-2 h-100 d-flex align-items-center justify-content-center">
-                <div id="categoryDonutChart" class="w-100" style="min-height: 120px;"></div>
+            <div class="bento-card bg-body border border-secondary-subtle p-3 h-100 d-flex flex-column justify-content-center">
+                <p class="text-muted fw-bold mb-3 text-uppercase small"><i class="bi bi-tags-fill me-1"></i> Top Categories</p>
+                <div class="d-flex flex-column gap-2">
+                    @forelse($categoryData->sortByDesc(function($count) { return $count; })->take(3) as $catName => $count)
+                        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary-subtle pb-1">
+                            <span class="text-body-emphasis fw-bold small text-truncate" style="max-width: 75%;">{{ strtoupper($catName) }}</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill">{{ $count }}</span>
+                        </div>
+                    @empty
+                        <div class="text-muted small fst-italic">No categorized items yet.</div>
+                    @endforelse
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- INVENTORY HEATMAP TABLE -->
+    {{-- ========================================== --}}
+    {{-- INVENTORY HEATMAP TABLE                    --}}
+    {{-- ========================================== --}}
     <div class="bento-card bg-body mb-5">
         
-        {{-- UPGRADED DUAL-FILTER HEADER --}}
+        {{-- DUAL-FILTER HEADER --}}
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h5 class="fw-bolder mb-0 text-body-emphasis"><i class="bi bi-list-columns-reverse text-info me-2"></i> Stock Heatmap</h5>
             
@@ -202,7 +220,7 @@
                             </td>
                             <td class="text-end">
                                 
-                                {{-- 7-BUTTON ACTION ARRAY --}}
+                                {{-- 7-BUTTON ACTION ARRAY (OPTIMIZED WITH ONCLICK) --}}
                                 <div class="d-flex justify-content-end gap-1 flex-wrap">
                                     {{-- 1. Visibility --}}
                                     <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline m-0">
@@ -212,8 +230,8 @@
                                         </button>
                                     </form>
 
-                                    {{-- 2. Adjust Stock --}}
-                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" data-bs-toggle="modal" data-bs-target="#adjustModal-{{ $item->id }}" title="Adjust Stock">
+                                    {{-- 2. Adjust Stock (DYNAMIC TRIGGER) --}}
+                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" onclick="openAdjustModal({{ $item->id }}, '{{ addslashes($item->name) }}', {{ $item->quantity }})" title="Adjust Stock">
                                         <i class="bi bi-sliders"></i>
                                     </button>
 
@@ -232,8 +250,8 @@
                                         <i class="bi bi-printer"></i>
                                     </button>
 
-                                    {{-- 6. Edit --}}
-                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}" title="Edit Item">
+                                    {{-- 6. Edit (DYNAMIC TRIGGER) --}}
+                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" onclick="openEditModal({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ $item->category }}', {{ $item->quantity }}, '{{ $item->unit }}', {{ $item->unit_price ?? 0 }}, {{ $item->reorder_level }}, '{{ addslashes($item->supplier) }}')" title="Edit Item">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
@@ -242,7 +260,6 @@
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 </div>
-
                             </td>
                         </tr>
                     @empty
@@ -259,7 +276,7 @@
     </div>
 
     {{-- ========================================== --}}
-    {{-- SYSTEM MODALS (ADD, EDIT, ADJUST, REPORTS) --}}
+    {{-- SYSTEM REPORT MODALS & ADD MODAL           --}}
     {{-- ========================================== --}}
 
     {{-- ITEM USAGE REPORT MODAL --}}
@@ -415,113 +432,111 @@
         </div>
     </div>
 
-    {{-- DYNAMIC MODALS (Looping for each item) --}}
-    @foreach($supplies as $item)
-        
-        {{-- EDIT ITEM MODAL --}}
-        <div class="modal fade" id="editModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content bento-card p-2 border-0 bg-body">
-                    <form action="/inventory/update/{{ $item->id }}" method="POST">
-                        @csrf
-                        @method('PUT')
-                        <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Item Details</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Item Name</label>
-                                    <input type="text" class="form-control input-modern" name="name" value="{{ $item->name }}" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                    <select class="form-select input-modern" name="category" required>
-                                        <option value="" disabled>Select Category...</option>
-                                        @foreach($masterCategories as $cat)
-                                            <option value="{{ $cat->name }}" {{ $item->category == $cat->name ? 'selected' : '' }}>
-                                                {{ strtoupper($cat->name) }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
+    {{-- ========================================== --}}
+    {{-- MASTER MODALS (SINGLE RENDER ARCHITECTURE) --}}
+    {{-- ========================================== --}}
+    
+    {{-- MASTER EDIT ITEM MODAL --}}
+    <div class="modal fade" id="masterEditModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
+                <form id="masterEditForm" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Item Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Item Name</label>
+                                <input type="text" class="form-control input-modern" name="name" id="editName" required>
                             </div>
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Quantity</label>
-                                    <input type="number" class="form-control input-modern fw-bolder text-primary" name="quantity" value="{{ $item->quantity }}" required min="0">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Unit</label>
-                                    <input type="text" class="form-control input-modern" name="unit" value="{{ $item->unit }}">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Price (₱)</label>
-                                    <input type="number" step="0.01" class="form-control input-modern" name="unit_price" value="{{ $item->unit_price }}">
-                                </div>
-                            </div>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase text-danger">Reorder Alert Level</label>
-                                    <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" value="{{ $item->reorder_level }}" min="0">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
-                                    <input type="text" class="form-control input-modern" name="supplier" value="{{ $item->supplier }}" placeholder="Supplier Name">
-                                </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                <select class="form-select input-modern" name="category" id="editCategory" required>
+                                    <option value="" disabled>Select Category...</option>
+                                    @foreach($masterCategories as $cat)
+                                        <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
-                        <div class="modal-header border-0 pt-3 justify-content-end gap-2">
-                            <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Update Item</button>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Quantity</label>
+                                <input type="number" class="form-control input-modern fw-bolder text-primary" name="quantity" id="editQuantity" required min="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Unit</label>
+                                <input type="text" class="form-control input-modern" name="unit" id="editUnit">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Price (₱)</label>
+                                <input type="number" step="0.01" class="form-control input-modern" name="unit_price" id="editPrice">
+                            </div>
                         </div>
-                    </form>
-                </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase text-danger">Reorder Alert Level</label>
+                                <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" id="editReorder" min="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
+                                <input type="text" class="form-control input-modern" name="supplier" id="editSupplier" placeholder="Supplier Name">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-header border-0 pt-3 justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Update Item</button>
+                    </div>
+                </form>
             </div>
         </div>
+    </div>
 
-        {{-- ADJUST STOCK MODAL --}}
-        <div class="modal fade" id="adjustModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content bento-card p-2 border-0 bg-body">
-                    <form action="/superadmin/inventory/adjust/{{ $item->id }}" method="POST">
-                        @csrf
-                        <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-sliders text-warning me-2"></i>Adjust Inventory Stock</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    {{-- MASTER ADJUST STOCK MODAL --}}
+    <div class="modal fade" id="masterAdjustModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
+                <form id="masterAdjustForm" method="POST">
+                    @csrf
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-sliders text-warning me-2"></i>Adjust Inventory Stock</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
+                        <p class="text-muted small mb-3">Use this form to manually correct physical count discrepancies for <strong id="adjustItemName"></strong>.</p>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Current System Quantity</label>
+                            <input type="number" class="form-control input-modern" id="adjustCurrentQty" readonly>
                         </div>
-                        <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
-                            <p class="text-muted small mb-3">Use this form to manually correct physical count discrepancies for <strong>{{ $item->name }}</strong>.</p>
-                            
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Current System Quantity</label>
-                                <input type="number" class="form-control input-modern" value="{{ $item->quantity }}" readonly>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Adjustment Amount <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control input-modern fw-bolder text-warning" name="adjustment" required placeholder="e.g. 50 (to add) or -20 (to deduct)">
-                                <div class="form-text small">Use a negative number to deduct stock.</div>
-                            </div>
-                            <div class="mb-0">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Remarks / Reason <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control input-modern" name="remarks" required placeholder="e.g. Physical inventory correction">
-                            </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Adjustment Amount <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control input-modern fw-bolder text-warning" name="adjustment" required placeholder="e.g. 50 (to add) or -20 (to deduct)">
+                            <div class="form-text small">Use a negative number to deduct stock.</div>
                         </div>
-                        <div class="modal-header border-0 pt-3 justify-content-end gap-2">
-                            <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bold"><i class="bi bi-check2-circle me-1"></i> Apply Adjustment</button>
+                        <div class="mb-0">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Remarks / Reason <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control input-modern" name="remarks" required placeholder="e.g. Physical inventory correction">
                         </div>
-                    </form>
-                </div>
+                    </div>
+                    <div class="modal-header border-0 pt-3 justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bold"><i class="bi bi-check2-circle me-1"></i> Apply Adjustment</button>
+                    </div>
+                </form>
             </div>
         </div>
+    </div>
 
-    @endforeach
-
+    {{-- ========================================== --}}
+    {{-- SCRIPTS                                    --}}
+    {{-- ========================================== --}}
     <x-slot name="scripts">
-        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-
         <script>
             // 1. SKELETON LOADERS
             document.addEventListener('DOMContentLoaded', () => {
@@ -530,52 +545,8 @@
                 setTimeout(() => rows.forEach(cell => cell.classList.remove('skeleton')), 450);
             });
 
-            // 2. APEXCHARTS: CATEGORY DONUT
-            document.addEventListener('DOMContentLoaded', function () {
-                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-                
-                var options = {
-                    series: {!! json_encode($categoryData->values()) !!},
-                    labels: {!! json_encode($categoryData->keys()) !!},
-                    chart: { type: 'donut', height: 160, background: 'transparent' },
-                    theme: { mode: isDark ? 'dark' : 'light' },
-                    stroke: { show: true, colors: isDark ? '#1e293b' : '#ffffff', width: 2 },
-                    dataLabels: { enabled: false },
-                    plotOptions: {
-                        pie: {
-                            donut: {
-                                size: '75%',
-                                labels: {
-                                    show: true,
-                                    name: { show: false },
-                                    value: {
-                                        show: true,
-                                        fontSize: '24px',
-                                        fontWeight: 800,
-                                        color: isDark ? '#f8fafc' : '#0f172a',
-                                        formatter: function (val) { return val; }
-                                    },
-                                    total: {
-                                        show: true,
-                                        showAlways: true,
-                                        label: 'Total',
-                                        color: isDark ? '#f8fafc' : '#0f172a',
-                                        formatter: function (w) {
-                                            return w.globals.seriesTotals.reduce((a, b) => { return a + b }, 0)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    legend: { show: false }
-                };
-                new ApexCharts(document.querySelector("#categoryDonutChart"), options).render();
-            });
-
-            // 3. BULLETPROOF DUAL-FILTER (Search + Category)
+            // 2. BULLETPROOF DUAL-FILTER (Search + Category)
             let searchTimeout = null;
-
             function filterInventory() {
                 let textInput = document.getElementById('inventorySearch').value.toLowerCase().trim();
                 let categoryInput = document.getElementById('categoryFilter').value.toLowerCase().trim();
@@ -607,7 +578,7 @@
                 }, 150); 
             }
             
-            // 4. REPORT PRINTING LOGIC
+            // 3. REPORT PRINTING LOGIC
             function printMonthlyReport() {
                 let month = document.getElementById('reportMonth').value;
                 let year = document.getElementById('reportYear').value;
@@ -628,12 +599,10 @@
                 }
                 
                 bootstrap.Modal.getInstance(document.getElementById('itemUsageModal')).hide();
-                
-                // FIX: Updated to match Route::get('/print-item-usage') in web.php
                 printDirectly(`/print-item-usage?item_id=${itemId}&month=${month}&year=${year}`);
             }
 
-            // 5. SILENT PRINTING LOGIC (Hidden Iframe)
+            // 4. SILENT PRINTING LOGIC (Hidden Iframe)
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
@@ -647,6 +616,30 @@
                     printFrame.contentWindow.focus(); 
                     printFrame.contentWindow.print(); 
                 };
+            }
+
+            // 5. DYNAMIC MODAL TRIGGERS (Replaces the 1000 hidden modals!)
+            function openEditModal(id, name, category, qty, unit, price, reorder, supplier) {
+                document.getElementById('masterEditForm').action = `/inventory/update/${id}`;
+                
+                document.getElementById('editName').value = name;
+                document.getElementById('editCategory').value = category;
+                document.getElementById('editQuantity').value = qty;
+                document.getElementById('editUnit').value = unit;
+                document.getElementById('editPrice').value = price;
+                document.getElementById('editReorder').value = reorder;
+                document.getElementById('editSupplier').value = supplier;
+                
+                new bootstrap.Modal(document.getElementById('masterEditModal')).show();
+            }
+
+            function openAdjustModal(id, name, currentQty) {
+                document.getElementById('masterAdjustForm').action = `/superadmin/inventory/adjust/${id}`;
+                
+                document.getElementById('adjustItemName').innerText = name;
+                document.getElementById('adjustCurrentQty').value = currentQty;
+                
+                new bootstrap.Modal(document.getElementById('masterAdjustModal')).show();
             }
         </script>
     </x-slot>
