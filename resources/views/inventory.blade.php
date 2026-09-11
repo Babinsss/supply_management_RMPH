@@ -1,8 +1,8 @@
 <x-layouts.admin title="Inventory Management | Supply Hub">
 
     {{-- ADMIN TOOLBAR --}}
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 bento-card py-3">
-        <h5 class="fw-bolder mb-0 text-dark">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 bento-card py-3 bg-body">
+        <h5 class="fw-bolder mb-0 text-body-emphasis">
             <i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Command Center
         </h5>
         
@@ -13,7 +13,7 @@
             </a>
 
             {{-- 2. Item Usage Report --}}
-            <button type="button" class="btn btn-sm btn-outline-info text-dark btn-modern fw-bold shadow-sm border-info" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
+            <button type="button" class="btn btn-sm btn-outline-info text-body-emphasis btn-modern fw-bold shadow-sm border-info" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
                 <i class="bi bi-graph-up me-1"></i> Item Usage
             </button>
 
@@ -23,7 +23,7 @@
             </button>
 
             {{-- 4. Print Directory (Silent Print) --}}
-            <button type="button" class="btn btn-sm btn-outline-dark btn-modern fw-bold shadow-sm" onclick="printDirectly('/print-inventory')">
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" onclick="printDirectly('/print-inventory')">
                 <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
 
@@ -58,7 +58,7 @@
             return $item->category ?: 'Uncategorized';
         })->map->count();
         
-        // NEW: Fetch master categories EXACTLY ONCE to prevent lag
+        // 4. Fetch master categories EXACTLY ONCE to prevent database lag
         $masterCategories = \Illuminate\Support\Facades\DB::table('categories')->get();
     @endphp
     
@@ -110,7 +110,7 @@
                     <p class="text-muted fw-bold mb-0 text-uppercase small"><i class="bi bi-heart-pulse-fill text-danger me-1"></i> Stock Health</p>
                     <span class="badge {{ $healthPercentage < 50 ? 'bg-danger' : 'bg-success' }}">{{ $healthPercentage }}%</span>
                 </div>
-                <h2 class="fw-bolder mb-2 text-dark">{{ $goodStockCount }} <span class="fs-6 fw-normal text-muted">/ {{ $totalItems }} items healthy</span></h2>
+                <h2 class="fw-bolder mb-2 text-body-emphasis">{{ $goodStockCount }} <span class="fs-6 fw-normal text-muted">/ {{ $totalItems }} items healthy</span></h2>
                 <div class="progress" style="height: 6px; border-radius: 10px;">
                     <div class="progress-bar {{ $healthPercentage < 50 ? 'bg-danger' : 'bg-success' }}" style="width: {{ $healthPercentage }}%"></div>
                 </div>
@@ -126,11 +126,11 @@
     </div>
 
     <!-- INVENTORY HEATMAP TABLE -->
-    <div class="bento-card mb-5">
+    <div class="bento-card bg-body mb-5">
         
         {{-- UPGRADED DUAL-FILTER HEADER --}}
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h5 class="fw-bolder mb-0"><i class="bi bi-list-columns-reverse text-info me-2"></i> Stock Heatmap</h5>
+            <h5 class="fw-bolder mb-0 text-body-emphasis"><i class="bi bi-list-columns-reverse text-info me-2"></i> Stock Heatmap</h5>
             
             <div class="d-flex gap-2" style="max-width: 450px; width: 100%;">
                 <select id="categoryFilter" class="form-select input-modern rounded-4 border-secondary-subtle shadow-sm" style="width: 40%;" onchange="filterInventory()">
@@ -159,14 +159,12 @@
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        {{-- CRITICAL FIX: The data-category attribute is securely added here --}}
-                        <tr class="inv-row" data-category="{{ strtolower(trim($item->category ?: 'uncategorized')) }}">
+                        <tr class="inv-row border-bottom border-secondary-subtle" data-category="{{ strtolower(trim($item->category ?: 'uncategorized')) }}">
                             <td>
-                                <div class="fw-bolder text-dark fs-6">{{ $item->name }}</div>
+                                <div class="fw-bolder text-body-emphasis fs-6">{{ $item->name }}</div>
                                 <div class="text-muted-soft small text-uppercase mt-1" style="letter-spacing: 0.5px;">
                                     <i class="bi bi-tag-fill me-1"></i>{{ $item->category ?: 'Uncategorized' }}
                                     
-                                    {{-- NEW: Supplier Display --}}
                                     @if($item->supplier)
                                         <span class="mx-1 text-secondary opacity-50">|</span>
                                         <i class="bi bi-building text-primary opacity-75 me-1"></i>{{ $item->supplier }}
@@ -174,7 +172,7 @@
                                 </div>
                             </td>
                             <td class="text-center">
-                                <span class="fw-bold text-dark">₱{{ number_format($item->unit_price ?? 0, 2) }}</span>
+                                <span class="fw-bold text-body-emphasis">₱{{ number_format($item->unit_price ?? 0, 2) }}</span>
                             </td>
                             <td>
                                 {{-- HEATMAP LOGIC --}}
@@ -204,7 +202,7 @@
                             </td>
                             <td class="text-end">
                                 
-                                {{-- 7-BUTTON ACTION ARRAY (FIXED) --}}
+                                {{-- 7-BUTTON ACTION ARRAY --}}
                                 <div class="d-flex justify-content-end gap-1 flex-wrap">
                                     {{-- 1. Visibility --}}
                                     <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline m-0">
@@ -219,18 +217,18 @@
                                         <i class="bi bi-sliders"></i>
                                     </button>
 
-                                    {{-- 3. Stockcard (Teal List) - SILENT PRINT --}}
+                                    {{-- 3. Stockcard (Teal List) --}}
                                     <button type="button" onclick="printDirectly('/stockcard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm" style="color: #20c997;" title="Print Stockcard">
                                         <i class="bi bi-card-list"></i>
                                     </button>
 
-                                    {{-- 4. RAPC (Blue Document) - SILENT PRINT --}}
+                                    {{-- 4. RAPC (Blue Document) --}}
                                     <button type="button" onclick="printDirectly('/rapc/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-info" title="Print RAPC">
                                         <i class="bi bi-file-earmark-spreadsheet"></i>
                                     </button>
 
-                                    {{-- 5. Bincard (Dark Printer) - SILENT PRINT --}}
-                                    <button type="button" onclick="printDirectly('/bincard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-dark" title="Print Bincard">
+                                    {{-- 5. Bincard (Dark Printer) --}}
+                                    <button type="button" onclick="printDirectly('/bincard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-body-emphasis" title="Print Bincard">
                                         <i class="bi bi-printer"></i>
                                     </button>
 
@@ -267,12 +265,24 @@
     {{-- ITEM USAGE REPORT MODAL --}}
     <div class="modal fade" id="itemUsageModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-2 border-0">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="fw-bolder text-dark"><i class="bi bi-graph-up text-info me-2"></i>Generate Item Usage</h5>
+                    <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-graph-up text-info me-2"></i>Generate Item Usage</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
+                <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
+                    
+                    {{-- The Item Selector --}}
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Select Item <span class="text-danger">*</span></label>
+                        <select id="usageItemId" class="form-select input-modern" required>
+                            <option value="" disabled selected>Choose an item...</option>
+                            @foreach($supplies as $item)
+                                <option value="{{ $item->id }}">{{ $item->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
@@ -289,7 +299,7 @@
                     </div>
                 </div>
                 <div class="modal-footer border-0 pt-3">
-                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-info text-white btn-modern shadow-sm fw-bold" onclick="printUsageReport()">
                         <i class="bi bi-printer-fill me-2"></i> Print Usage
                     </button>
@@ -301,12 +311,12 @@
     {{-- MONTHLY REPORT MODAL --}}
     <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-2 border-0">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="fw-bolder text-dark"><i class="bi bi-calendar-check text-secondary me-2"></i>Generate Monthly Report</h5>
+                    <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-calendar-check text-secondary me-2"></i>Generate Monthly Report</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
+                <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
@@ -332,7 +342,7 @@
                     </div>
                 </div>
                 <div class="modal-footer border-0 pt-3">
-                    <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-secondary text-white btn-modern shadow-sm fw-bold" onclick="printMonthlyReport()">
                         <i class="bi bi-printer-fill me-2"></i> Print Report
                     </button>
@@ -348,7 +358,7 @@
                 <form action="/add" method="POST">
                     @csrf
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-dark"><i class="bi bi-plus-circle text-success me-2"></i>Add New Supply</h5>
+                        <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-plus-circle text-success me-2"></i>Add New Supply</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
@@ -397,7 +407,7 @@
                         </div>
                     </div>
                     <div class="modal-header border-0 pt-3 justify-content-end gap-2">
-                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-success btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Save to Inventory</button>
                     </div>
                 </form>
@@ -416,7 +426,7 @@
                         @csrf
                         @method('PUT')
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-dark"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Item Details</h5>
+                            <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Item Details</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
@@ -463,7 +473,7 @@
                             </div>
                         </div>
                         <div class="modal-header border-0 pt-3 justify-content-end gap-2">
-                            <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Update Item</button>
                         </div>
                     </form>
@@ -475,10 +485,10 @@
         <div class="modal fade" id="adjustModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content bento-card p-2 border-0 bg-body">
-                    <form action="/inventory/adjust/{{ $item->id }}" method="POST">
+                    <form action="/superadmin/inventory/adjust/{{ $item->id }}" method="POST">
                         @csrf
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-dark"><i class="bi bi-sliders text-warning me-2"></i>Adjust Inventory Stock</h5>
+                            <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-sliders text-warning me-2"></i>Adjust Inventory Stock</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
@@ -499,7 +509,7 @@
                             </div>
                         </div>
                         <div class="modal-header border-0 pt-3 justify-content-end gap-2">
-                            <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bold"><i class="bi bi-check2-circle me-1"></i> Apply Adjustment</button>
                         </div>
                     </form>
@@ -577,12 +587,9 @@
                     
                     rows.forEach(row => {
                         let textContent = row.innerText.toLowerCase();
-                        
-                        // Safely grab the category tag we added to the <tr>
                         let rawCat = row.getAttribute('data-category');
                         let rowCategory = rawCat ? rawCat.toLowerCase().trim() : 'uncategorized';
                         
-                        // Check if row passes BOTH filters
                         let matchesText = textContent.includes(textInput);
                         let matchesCategory = (categoryInput === 'all' || rowCategory === categoryInput);
 
@@ -597,7 +604,7 @@
                             row.style.display = 'none';
                         }
                     });
-                }, 150); // Fast 150ms debounce
+                }, 150); 
             }
             
             // 4. REPORT PRINTING LOGIC
@@ -611,16 +618,23 @@
             }
 
             function printUsageReport() {
+                let itemId = document.getElementById('usageItemId').value;
                 let month = document.getElementById('usageMonth').value;
                 let year = document.getElementById('usageYear').value;
                 
+                if(!itemId) {
+                    alert("Please select an item first!");
+                    return;
+                }
+                
                 bootstrap.Modal.getInstance(document.getElementById('itemUsageModal')).hide();
-                printDirectly(`/item-usage?month=${month}&year=${year}`);
+                
+                // FIX: Updated to match Route::get('/print-item-usage') in web.php
+                printDirectly(`/print-item-usage?item_id=${itemId}&month=${month}&year=${year}`);
             }
 
             // 5. SILENT PRINTING LOGIC (Hidden Iframe)
             function printDirectly(url) {
-                // Find or create a hidden iframe
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
                     printFrame.id = 'hiddenPrintFrame';
@@ -628,10 +642,7 @@
                     document.body.appendChild(printFrame);
                 }
                 
-                // Load the URL into the hidden iframe
                 printFrame.src = url;
-                
-                // Wait for it to load, then trigger the print dialog
                 printFrame.onload = () => { 
                     printFrame.contentWindow.focus(); 
                     printFrame.contentWindow.print(); 
