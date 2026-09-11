@@ -1,7 +1,7 @@
 <x-layouts.admin title="User Management | Superadmin Control">
 
-    <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3">
-        <h5 class="fw-bolder mb-0 text-dark">
+    <div class="d-flex justify-content-between align-items-center mb-4 bento-card py-3 bg-body">
+        <h5 class="fw-bolder mb-0 text-body-emphasis">
             <i class="bi bi-people-fill text-primary me-2"></i> User Management
         </h5>
         <button class="btn btn-sm btn-primary btn-modern shadow-sm fw-bold px-3" data-bs-toggle="modal" data-bs-target="#addUserModal">
@@ -22,31 +22,32 @@
         </div>
     @endif
 
-    <div class="bento-card h-100 d-flex flex-column mb-5">
+    <div class="bento-card h-100 d-flex flex-column mb-5 bg-body">
         <div class="table-responsive flex-grow-1 pe-2" style="max-height: 600px; overflow-y: auto;">
             <table class="table table-clean align-middle mb-0">
-                <thead class="sticky-top bg-white" style="z-index: 1;">
+                {{-- DARK MODE FIX: Replaced bg-white with bg-body --}}
+                <thead class="sticky-top bg-body" style="z-index: 1;">
                     <tr>
                         <th class="text-uppercase small text-muted">User Profile</th>
-                        <th class="text-uppercase small text-muted">System Role</th>
+                        <th class="text-uppercase small text-muted text-center">System Role</th>
                         <th class="text-uppercase small text-muted text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($users as $user)
-                        <tr class="border-bottom border-light">
+                        <tr class="border-bottom border-secondary-subtle">
                             <td>
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex justify-content-center align-items-center fw-bolder fs-5" style="width: 45px; height: 45px;">
                                         {{ strtoupper(substr($user->name, 0, 1)) }}
                                     </div>
                                     <div>
-                                        <div class="fw-bold text-dark">{{ $user->name }}</div>
+                                        <div class="fw-bold text-body-emphasis">{{ $user->name }}</div>
                                         <div class="text-muted-soft small"><i class="bi bi-envelope me-1"></i>{{ $user->email }}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 @if($user->role === 'superadmin')
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-shield-lock-fill me-1"></i> Superadmin</span>
                                 @elseif($user->role === 'admin')
@@ -56,18 +57,17 @@
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
-                                {{-- Edit Button triggers Modal specific to this user --}}
-                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $user->id }}">
+                                {{-- DARK MODE FIX: Action buttons updated --}}
+                                <button class="btn btn-sm btn-outline-secondary btn-modern text-primary shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $user->id }}">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
                                 
-                                {{-- Delete Button --}}
                                 @if(auth()->id() !== $user->id)
-                                    <a href="/superadmin/users/delete/{{ $user->id }}" class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" onclick="return confirm('Are you sure you want to remove {{ $user->name }} from the system?');">
+                                    <a href="/superadmin/users/delete/{{ $user->id }}" class="btn btn-sm btn-outline-secondary btn-modern text-danger shadow-sm" onclick="return confirm('Are you sure you want to remove {{ $user->name }} from the system?');">
                                         <i class="bi bi-trash-fill"></i>
                                     </a>
                                 @else
-                                    <button class="btn btn-sm btn-light btn-modern text-muted border shadow-sm opacity-50" disabled title="Cannot delete yourself">
+                                    <button class="btn btn-sm btn-outline-secondary btn-modern text-muted shadow-sm opacity-50" disabled title="Cannot delete yourself">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
                                 @endif
@@ -86,22 +86,18 @@
         </div>
     </div>
 
-    {{-- ========================================== --}}
-    {{-- SYSTEM MODALS (MOVED TO ROOT TO FIX FLICKER) --}}
-    {{-- ========================================== --}}
-
     {{-- DYNAMIC EDIT USER MODALS --}}
     @foreach($users as $user)
         <div class="modal fade" id="editUserModal{{ $user->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content bento-card p-2 border-0">
+                <div class="modal-content bento-card p-2 border-0 bg-body">
                     <form action="/superadmin/users/update/{{ $user->id }}" method="POST">
                         @csrf
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-dark"><i class="bi bi-person-gear text-primary me-2"></i>Edit User Profile</h5>
+                            <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-person-gear text-primary me-2"></i>Edit User Profile</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
+                        <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Full Name</label>
                                 <input type="text" class="form-control input-modern" name="name" value="{{ $user->name }}" required>
@@ -125,7 +121,7 @@
                             </div>
                         </div>
                         <div class="modal-footer border-0 pt-3">
-                            <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary btn-modern shadow-sm">Save Changes</button>
                         </div>
                     </form>
@@ -137,14 +133,14 @@
     {{-- ADD NEW USER MODAL --}}
     <div class="modal fade" id="addUserModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-2 border-0">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
                 <form action="/superadmin/users/add" method="POST">
                     @csrf
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-dark"><i class="bi bi-person-plus text-primary me-2"></i>Add New System User</h5>
+                        <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-person-plus text-primary me-2"></i>Add New System User</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
+                    <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold text-uppercase">Full Name</label>
                             <input type="text" class="form-control input-modern" name="name" placeholder="e.g. Juan Dela Cruz" required>
@@ -168,7 +164,7 @@
                         </div>
                     </div>
                     <div class="modal-footer border-0 pt-3">
-                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary btn-modern shadow-sm">Create User</button>
                     </div>
                 </form>
