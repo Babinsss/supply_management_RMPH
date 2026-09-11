@@ -1,5 +1,6 @@
 <x-layouts.admin title="Dashboard | Supply Hub">
     
+    <!-- TOP METRICS -->
     <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="bento-card bg-primary text-white d-flex justify-content-between align-items-center h-100">
@@ -11,12 +12,15 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="bento-card d-flex justify-content-between align-items-center h-100">
-                <div>
-                    <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions Processed</p>
-                    <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
+            <div class="bento-card d-flex flex-column justify-content-between h-100 position-relative overflow-hidden pt-4 pb-0 px-0">
+                <div class="px-4 mb-2 d-flex justify-content-between align-items-start">
+                    <div>
+                        <p class="text-muted-soft fw-bold mb-1 text-uppercase small">Total Requisitions</p>
+                        <h1 class="fw-bolder mb-0 display-4 text-dark">{{ is_object($requests) && method_exists($requests, 'total') ? $requests->total() : count($requests) }}</h1>
+                    </div>
+                    <i class="bi bi-graph-up-arrow fs-3 text-primary opacity-50"></i>
                 </div>
-                <i class="bi bi-check2-all fs-1 text-primary opacity-25"></i>
+                <div id="requisitionChart" class="mt-auto w-100" style="min-height: 80px;"></div>
             </div>
         </div>
         <div class="col-md-4">
@@ -30,138 +34,67 @@
         </div>
     </div>
 
-    <div class="bento-card mb-5">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h5 class="fw-bolder mb-0"><i class="bi bi-inbox-fill text-warning me-2"></i> Department Requisitions Monitor</h5>
-            
-            <div class="input-group" style="max-width: 350px;">
-                <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" id="requestSearchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search department, item, or status..." onkeyup="filterRequests()">
-            </div>
+    <!-- REQUEST PROCESSING TIMELINE SECTION -->
+    <div class="d-flex justify-content-between align-items-center mb-4 mt-5">
+        <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-clock-history text-info me-2"></i> Request Processing Timeline</h5>
+        <div class="input-group" style="max-width: 350px;">
+            <span class="input-group-text bg-body-tertiary border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="requestSearchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search timeline..." onkeyup="filterRequests()">
         </div>
-        
-        <div class="table-responsive">
-            <table class="table table-clean mb-0">
-                <thead>
-                    <tr>
-                        <th>Date & Time (PH)</th>
-                        <th>Requestor</th>
-                        <th>Items</th>
-                        <th>Status</th>
-                        <th class="text-end">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($requests as $batch)
-                    <tr class="request-row align-top">
-                        <td>
-                            @php $batchDate = $batch['created_at'] ?? $batch['items'][0]->created_at; @endphp
-                            <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('M d, Y') }}</div>
-                            <div class="text-muted-soft small">{{ \Carbon\Carbon::parse($batchDate)->timezone('Asia/Manila')->format('h:i A') }}</div>
-                        </td>
-                        <td>
-                            <div class="fw-bold text-dark">{{ $batch['department_name'] }}</div>
-                            <div class="text-muted-soft small">{{ $batch['requested_by'] }}</div>
-                        </td>
-                        <td>
-                            @php
-                                $displayLimit = 2;
-                                $totalItems = count($batch['items']);
-                                $firstItems = collect($batch['items'])->take($displayLimit);
-                                $remainingItems = collect($batch['items'])->skip($displayLimit);
-                            @endphp
-                            
-                            {{-- Always visible items --}}
-                            @foreach($firstItems as $req)
-                                <div class="mb-2">
-                                    <div class="small fw-medium">
-                                        <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
-                                    </div>
-                                    @if($req->supply->category)
-                                        <div class="text-muted-soft text-uppercase" style="font-size: 0.65rem; margin-left: 1.4rem; letter-spacing: 0.5px;">
-                                            <i class="bi bi-tag"></i> {{ $req->supply->category }}
-                                        </div>
-                                    @endif
-                                </div>
-                            @endforeach
-
-                            {{-- Hidden items --}}
-                            @if($totalItems > $displayLimit)
-                                <div class="collapse" id="collapse-{{ $batch['batch_id'] }}">
-                                    @foreach($remainingItems as $req)
-                                        <div class="mb-2">
-                                            <div class="small fw-medium">
-                                                <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
-                                            </div>
-                                            @if($req->supply->category)
-                                                <div class="text-muted-soft text-uppercase" style="font-size: 0.65rem; margin-left: 1.4rem; letter-spacing: 0.5px;">
-                                                    <i class="bi bi-tag"></i> {{ $req->supply->category }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                                
-                                {{-- Toggle Button --}}
-                                <button class="btn btn-sm btn-link text-decoration-none p-0 mt-1 fw-bold text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ $batch['batch_id'] }}">
-                                    View all {{ $totalItems }} items <i class="bi bi-chevron-down ms-1"></i>
-                                </button>
-                            @endif
-                        </td>
-                        <td>
-                            @if($batch['status'] == 'Pending')
-                                <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill px-3 py-2">
-                                    <i class="bi bi-hourglass-split me-1"></i> Pending
-                                </span>
-                            @elseif($batch['status'] == 'Approved')
-                                <span class="badge bg-success bg-opacity-25 text-success rounded-pill px-3 py-2">
-                                    <i class="bi bi-check-circle-fill me-1"></i> Issued
-                                </span>
-                                
-                                @php $issuer = $batch['items'][0]->issuer; @endphp
-                                @if($issuer)
-                                    <div class="mt-2 text-start" style="max-width: 140px;">
-                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1" style="font-size: 0.70rem; white-space: normal;">
-                                            <i class="bi bi-person-check-fill me-1"></i> {{ $issuer->name }}
-                                        </span>
-                                    </div>
-                                @endif
-                                
-                            @elseif($batch['status'] == 'Denied')
-                                <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-3 py-2">
-                                    <i class="bi bi-x-circle-fill me-1"></i> Cancelled
-                                </span>
-                            @endif
-                        </td>
-                        <td class="text-end">
-                            @if($batch['status'] == 'Pending')
-                                <div class="d-flex justify-content-end gap-2">
-                                    <form action="/process-batch/{{ $batch['batch_id'] }}/deny" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to disapprove this entire request?')">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-modern btn-outline-danger">
-                                            <i class="bi bi-x-circle me-1"></i> Disapprove
-                                        </button>
-                                    </form>
-                                    <button type="button" class="btn btn-sm btn-modern btn-success" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}">
-                                        <i class="bi bi-box-arrow-up-right me-1"></i> Issue
-                                    </button>
-                                </div>
-                            @endif
-                        </td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No requests found.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        @if(is_object($requests) && method_exists($requests, 'links'))
-            <div class="d-flex justify-content-end mt-4">
-                {{ $requests->links() }}
-            </div>
-        @endif
     </div>
+
+    <div class="bento-card mb-4 p-5">
+        <div class="position-relative ms-2 ms-md-4 border-start border-3 border-primary border-opacity-25 pb-4">
+            
+            @forelse($requests as $batch)
+                <div class="timeline-node position-relative mb-5 ps-4 ps-md-5">
+                    
+                    {{-- THE TIMELINE DOT --}}
+                    <span class="position-absolute top-0 start-0 translate-middle p-2 bg-body border border-3 {{ $batch['status'] == 'Pending' ? 'border-warning' : ($batch['status'] == 'Approved' ? 'border-success' : 'border-danger') }} rounded-circle shadow" style="width: 24px; height: 24px; margin-left: -1.5px;"></span>
+                    
+                    {{-- THE CONTENT CARD --}}
+                    <div class="card timeline-card border-0 shadow-sm rounded-4 overflow-hidden {{ $batch['status'] == 'Pending' ? 'bg-warning bg-opacity-10' : 'bg-body-tertiary' }}">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bolder text-dark mb-0">{{ $batch['department_name'] }}</h5>
+                                <span class="badge {{ $batch['status'] == 'Pending' ? 'bg-warning text-dark' : ($batch['status'] == 'Approved' ? 'bg-success' : 'bg-danger') }}">{{ $batch['status'] }}</span>
+                            </div>
+                            
+                            <p class="text-muted small mb-3"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
+                            
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @foreach(collect($batch['items'])->take(3) as $req)
+                                    <span class="badge bg-body text-body border border-secondary-subtle px-3 py-2 shadow-sm">
+                                        <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                    </span>
+                                @endforeach
+                                @if(count($batch['items']) > 3)
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-3 py-2">+ {{ count($batch['items']) - 3 }} more</span>
+                                @endif
+                            </div>
+
+                            @if($batch['status'] == 'Pending')
+                                <div class="mt-4 text-end d-flex justify-content-end gap-2">
+                                    <form action="/process-batch/{{ $batch['batch_id'] }}/deny" method="POST" onsubmit="return confirm('Disapprove this request?')">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-danger btn-modern"><i class="bi bi-x-circle me-1"></i> Cancel</button>
+                                    </form>
+                                    <button class="btn btn-sm btn-success btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#approveModal-{{ $batch['batch_id'] }}"><i class="bi bi-check2-circle me-1"></i> Process Request</button>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="text-center py-5 text-muted-soft fw-medium ps-4">The timeline is empty.</div>
+            @endforelse
+            
+        </div>
+    </div>
+
+    @if(is_object($requests) && method_exists($requests, 'links'))
+        <div class="d-flex justify-content-end mb-5">{{ $requests->links() }}</div>
+    @endif
 
     {{-- Review Modals --}}
     @foreach($requests as $batch)
@@ -176,21 +109,15 @@
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                
                                 @php
                                     $hasOutOfStock = false;
                                     $totalFulfillable = 0;
-                                    
-                                    // Check stock statuses before generating the list
                                     foreach($batch['items'] as $req) {
-                                        if($req->supply->quantity <= 0) {
-                                            $hasOutOfStock = true;
-                                        }
+                                        if($req->supply->quantity <= 0) $hasOutOfStock = true;
                                         $totalFulfillable += min($req->quantity, $req->supply->quantity);
                                     }
                                 @endphp
 
-                                {{-- SMART WARNING BANNER --}}
                                 @if($hasOutOfStock)
                                     <div class="alert alert-danger border-0 rounded-3 py-2 small fw-bold mb-3 shadow-sm">
                                         <i class="bi bi-exclamation-triangle-fill me-1"></i> Heads up! Some items in this request are already out of stock.
@@ -200,35 +127,25 @@
                                 @endif
 
                                 @foreach($batch['items'] as $req)
-                                <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-4 border border-white border-2 shadow-sm {{ $req->supply->quantity <= 0 ? 'opacity-75' : '' }}">
+                                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-tertiary p-3 rounded-4 border border-secondary-subtle shadow-sm {{ $req->supply->quantity <= 0 ? 'opacity-75' : '' }}">
                                     <div class="pe-2">
                                         <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
-                                        @if($req->supply->category)
-                                            <div class="text-muted-soft text-uppercase mt-1 mb-1" style="font-size: 0.70rem; letter-spacing: 0.5px;">
-                                                {{ $req->supply->category }}
-                                            </div>
-                                        @endif
                                         <div class="text-muted-soft small mt-1">
-                                            Requested: <span class="fw-bold">{{ $req->quantity }}</span> | 
+                                            Req: <span class="fw-bold">{{ $req->quantity }}</span> | 
                                             Stock: <span class="fw-bold {{ $req->supply->quantity <= 0 ? 'text-danger' : 'text-dark' }}">{{ $req->supply->quantity }}</span>
                                         </div>
                                     </div>
                                     <div style="width: 90px; flex-shrink: 0;">
-                                        <!-- FIX: Added dynamic 'qty_{{ $req->id }}' to the name attribute so the controller can fetch it -->
                                         <input type="number" class="input-modern text-center py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
-                                               value="{{ min($req->quantity, $req->supply->quantity) }}" 
-                                               min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" 
-                                               {{ $req->supply->quantity <= 0 ? 'readonly' : 'required' }}>
+                                               value="{{ min($req->quantity, $req->supply->quantity) }}" min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" {{ $req->supply->quantity <= 0 ? 'readonly' : 'required' }}>
                                     </div>
                                 </div>
                                 @endforeach
                             </div>
                             <div class="modal-header border-0 pt-0 justify-content-end gap-2">
                                 <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                                
-                                {{-- BUTTON DISABLES IF ALL ITEMS ARE 0 --}}
                                 <button type="submit" class="btn btn-success btn-modern shadow-sm" {{ $totalFulfillable <= 0 ? 'disabled title="Nothing to issue"' : '' }}>
-                                    <i class="bi bi-check-circle-fill me-2"></i> Approve & Issue
+                                    <i class="bi bi-check-circle-fill me-2"></i> Confirm Issuance
                                 </button>
                             </div>
                         </form>
@@ -239,67 +156,102 @@
     @endforeach
 
     <x-slot name="scripts">
-        <!-- NEW: SweetAlert2 CDN for modern pop-ups -->
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
         <script>
-            // --- SMART NOTIFICATION HANDLERS ---
-            @if(session('danger'))
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Queue Violation!',
-                    text: "{!! session('danger') !!}",
-                    confirmButtonColor: '#dc3545',
-                    confirmButtonText: 'Understood',
-                    backdrop: `rgba(220, 53, 69, 0.1)` // Adds a slight red tint to the background
-                });
-            @endif
+            // 1. SKELETON LOADERS
+            document.addEventListener('DOMContentLoaded', () => {
+                const nodes = document.querySelectorAll('.timeline-card');
+                nodes.forEach(node => node.classList.add('skeleton'));
+                setTimeout(() => nodes.forEach(node => node.classList.remove('skeleton')), 450);
+            });
 
-            @if(session('success'))
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: "{!! session('success') !!}",
-                    confirmButtonColor: '#198754',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            @endif
+            // 2. APEXCHARTS RENDERER
+            document.addEventListener('DOMContentLoaded', function () {
+                var options = {
+                    series: [{ name: 'Requests Processed', data: {!! json_encode($chartData ?? [0,0,0,0,0,0,0]) !!} }],
+                    chart: { type: 'area', height: 80, sparkline: { enabled: true }, animations: { enabled: true, easing: 'easeinout', speed: 800 } },
+                    stroke: { curve: 'smooth', width: 2 },
+                    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } },
+                    colors: ['#0d6efd'],
+                    tooltip: { fixed: { enabled: false }, x: { show: false }, y: { title: { formatter: function () { return 'Requests: ' } } }, marker: { show: false } }
+                };
+                new ApexCharts(document.querySelector("#requisitionChart"), options).render();
+            });
 
-            @if(session('warning'))
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Heads Up!',
-                    text: "{!! session('warning') !!}",
-                    confirmButtonColor: '#ffc107'
-                });
-            @endif
-            // -----------------------------------
+            // 3. SERVER ALERTS
+            @if(session('danger')) Swal.fire({ icon: 'error', title: 'Queue Violation!', text: "{!! session('danger') !!}", confirmButtonColor: '#dc3545', backdrop: `rgba(220, 53, 69, 0.1)` }); @endif
+            @if(session('success')) Swal.fire({ icon: 'success', title: 'Success!', text: "{!! session('success') !!}", confirmButtonColor: '#198754', timer: 2000, showConfirmButton: false }); @endif
 
+            // 4. QUEUE LIVE UPDATE
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
-                fetch('/api/pending-count')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.count !== currentCount && !document.querySelector('.modal.show')) { 
-                            location.reload(); 
-                        }
-                    });
+                fetch('/api/pending-count').then(r => r.json()).then(data => {
+                    if (data.count !== currentCount && !document.querySelector('.modal.show')) location.reload(); 
+                });
             }, 5000);
 
+            // 5. CUSTOM TIMELINE FILTER
             function filterRequests() {
                 let input = document.getElementById('requestSearchInput').value.toLowerCase();
-                let rows = document.querySelectorAll('.request-row');
-                
-                rows.forEach(row => {
-                    let textContent = row.innerText.toLowerCase();
-                    if (textContent.includes(input)) {
-                        row.style.display = '';
+                let nodes = document.querySelectorAll('.timeline-node');
+                nodes.forEach(node => {
+                    if (node.innerText.toLowerCase().includes(input)) {
+                        node.style.display = '';
+                        let card = node.querySelector('.timeline-card');
+                        card.classList.add('skeleton');
+                        setTimeout(() => card.classList.remove('skeleton'), 300);
                     } else {
-                        row.style.display = 'none';
+                        node.style.display = 'none';
                     }
                 });
             }
+
+            // 6. THE SNITCH: AUTOMATED LOW-STOCK ALERTS
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 6000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+
+            function sniffLowStock() {
+                fetch('/api/low-stock')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.count > 0) {
+                            // Format the item list
+                            let itemList = data.items.slice(0, 3).map(i => `<div class="text-start small mb-1"><strong class="text-danger">${i.quantity} left</strong> - ${i.name}</div>`).join('');
+                            
+                            if (data.count > 3) {
+                                itemList += `<div class="text-start small text-muted-soft mt-1 fst-italic">+ ${data.count - 3} more critical items...</div>`;
+                            }
+
+                            // Match the toast background to the current theme
+                            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+
+                            Toast.fire({
+                                icon: 'warning',
+                                title: 'Critical Stock Alert',
+                                html: itemList,
+                                background: isDark ? '#1e293b' : '#ffffff',
+                                color: isDark ? '#f8fafc' : '#0f172a'
+                            });
+                        }
+                    })
+                    .catch(error => console.error('Snitch failed to run:', error));
+            }
+
+            // Fire it up 2 seconds after load, then every 5 minutes
+            setTimeout(sniffLowStock, 2000);
+            setInterval(sniffLowStock, 300000);
+            
         </script>
     </x-slot>
 </x-layouts.admin>

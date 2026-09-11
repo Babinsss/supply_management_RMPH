@@ -19,9 +19,22 @@ class SupplyController extends Controller
    public function dashboard()
     {
         $supplies = Supply::all();
-        
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
         
+        // --- NEW: Generate 7-Day Trend Data for the Sparkline Chart ---
+        $chartDates = [];
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
+            $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
+
+            // Count how many unique batches (requests) came in on this specific day
+            $chartData[] = DepartmentRequest::whereDate('created_at', $date)
+                                            ->distinct('batch_id')
+                                            ->count('batch_id');
+        }
+        // --------------------------------------------------------------
+
         // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
@@ -63,7 +76,9 @@ class SupplyController extends Controller
             'items' => $supplies, 
             'requests' => $paginatedRequests, 
             'pending_count' => $pendingCount,
-            'low_stock_count' => $lowStockCount
+            'low_stock_count' => $lowStockCount,
+            'chartDates' => $chartDates, // Passed to View
+            'chartData' => $chartData    // Passed to View
         ]);
     }
 
@@ -121,6 +136,7 @@ class SupplyController extends Controller
             'supplier' => 'nullable|string|max:255',
             'date_delivered' => 'nullable|date',
             'unit_price' => 'nullable|numeric|min:0',
+            'unit' => 'nullable|string|max:50', // <--- ADD THIS LINE
         ]);
 
         $item = Supply::findOrFail($id);
@@ -706,5 +722,19 @@ class SupplyController extends Controller
         $reportYear = $request->year;
 
         return view('print_item_usage', compact('item', 'usageData', 'reportMonth', 'reportYear'));
+    }
+
+    public function lowStockApi()
+    {
+        // Scan the database for items at or below their reorder threshold
+        $criticalItems = Supply::whereRaw('quantity <= reorder_level')
+            ->select('name', 'quantity', 'reorder_level')
+            ->orderBy('quantity', 'asc')
+            ->get();
+
+        return response()->json([
+            'count' => $criticalItems->count(),
+            'items' => $criticalItems
+        ]);
     }
 }

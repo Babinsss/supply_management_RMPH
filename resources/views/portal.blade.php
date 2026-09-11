@@ -29,6 +29,10 @@
         .filter-pill { cursor: pointer; transition: all 0.2s; font-weight: 600; }
         .filter-pill.active { background-color: #0d6efd !important; color: white !important; }
         
+        /* Hide scrollbar for Quick Reorder lane but allow scrolling */
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -71,7 +75,7 @@
             
             <div class="row g-4 mb-5">
                 
-                {{-- Left Column: Form & Item Selection --}}
+                {{-- Left Column: Form & Manual Item Selection --}}
                 <div class="col-lg-5">
                     <div class="bento-card h-100">
                         <div class="mb-4">
@@ -96,17 +100,17 @@
 
                         <div class="p-4 bg-light rounded-4 mb-4 border border-white border-4 shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase mb-0"><i class="bi bi-cart-plus me-2"></i>Add Items</label>
+                                <label class="form-label text-muted small fw-bold text-uppercase mb-0"><i class="bi bi-search me-2"></i>Manual Item Search</label>
                                 
                                 {{-- Petty Cash Trigger Button --}}
                                 <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" onclick="openPettyCashModal()">
-                                    <i class="bi bi-wallet2 me-1"></i> Request Petty Cash
+                                    <i class="bi bi-wallet2 me-1"></i> Petty Cash
                                 </button>
                             </div>
                             
+                            @php $uniqueCategories = collect($supplies)->pluck('category')->filter()->unique()->sort(); @endphp
                             <select id="categorySelect" class="form-select input-modern mb-3" onchange="filterItemsByCategory()">
                                 <option value="" disabled selected>1. Select a Category...</option>
-                                @php $uniqueCategories = collect($supplies)->pluck('category')->filter()->unique()->sort(); @endphp
                                 @foreach($uniqueCategories as $category)
                                     <option value="{{ $category }}">{{ $category }}</option>
                                 @endforeach
@@ -130,7 +134,7 @@
                     </div>
                 </div>
 
-                {{-- Right Column: Live Directory with Search & Filters --}}
+                {{-- Right Column: Live Directory with Shopee-Style Buttons --}}
                 <div class="col-lg-7">
                     <div class="bento-card h-100 d-flex flex-column">
                         <h6 class="fw-bolder border-bottom pb-3 mb-3 text-uppercase small text-muted">Live Inventory Directory</h6>
@@ -150,7 +154,7 @@
                             </div>
                         </div>
 
-                        {{-- Directory List --}}
+                        {{-- Upgraded Directory List with Add Buttons & Stock Status --}}
                         <div style="flex-grow: 1; overflow-y: auto; max-height: 450px;" class="pe-2" id="directoryContainer">
                             <ul class="list-unstyled mb-0" id="directoryList">
                                 @foreach($supplies as $item)
@@ -166,17 +170,21 @@
                                             @endif
                                             <div class="text-muted-soft d-flex flex-column" style="font-size: 0.65rem;">
                                                 @if($item->supplier) <span><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span> @endif
-                                                @if($item->ris_number) <span><i class="bi bi-hash me-1"></i>RIS: {{ $item->ris_number }}</span> @endif
+                                                <span class="text-primary fw-bold">{{ $item->quantity }} {{ $item->unit ?? 'pcs' }} available</span>
                                             </div>
                                         </div>
                                         
-                                        <div class="text-end">
+                                        <div class="text-end d-flex flex-column align-items-end gap-2">
                                             @if($item->quantity <= 0)
-                                                <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill border border-danger border-opacity-25 px-2 py-1 d-block">Out of Stock</span>
-                                            @elseif($item->quantity <= $item->reorder_level)
-                                                <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill border border-warning border-opacity-25 px-2 py-1 d-block fw-bold">Low Stock</span>
+                                                <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 border border-danger border-opacity-25">Out of Stock</span>
+                                                <button type="button" class="btn btn-sm btn-light text-muted fw-bold rounded-pill shadow-sm" disabled><i class="bi bi-x-circle me-1"></i> Add</button>
                                             @else
-                                                <span class="badge bg-success bg-opacity-10 text-success rounded-pill border border-success border-opacity-25 px-2 py-1 d-block">In Stock</span>
+                                                @if($item->quantity <= $item->reorder_level)
+                                                    <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill px-3 py-1 border border-warning border-opacity-25 fw-bold">Low Stock</span>
+                                                @endif
+                                                <button type="button" class="btn btn-sm btn-primary fw-bold rounded-pill shadow-sm px-3" onclick="addDirectlyToCart('{{ $item->id }}', '{{ addslashes($item->name) }}', {{ $item->quantity }})">
+                                                    <i class="bi bi-plus-lg"></i> Add
+                                                </button>
                                             @endif
                                         </div>
                                     </li>
@@ -223,7 +231,6 @@
     {{-- PETTY CASH MANUAL REQUEST MODAL --}}
     <div class="modal fade" id="pettyCashModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            {{-- FIX: Merged <form> with <div class="modal-content"> so the scrollbar activates --}}
             <form action="/portal/petty-cash/print" method="POST" target="hiddenPettyCashFrame" id="pettyCashForm" class="modal-content bento-card p-2 border-0">
                 @csrf
                 <input type="hidden" name="department_name" id="pcDeptName">
@@ -234,13 +241,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 
-                {{-- This body will now scroll perfectly --}}
                 <div class="modal-body">
                     <div class="alert alert-warning border-0 rounded-3 py-2 small fw-bold mb-3 shadow-sm">
                         <i class="bi bi-info-circle-fill me-1"></i> Use this form to request items NOT in the standard inventory directory.
                     </div>
 
-                    {{-- Container for dynamic item rows --}}
                     <div id="pcItemsContainer">
                         <div class="pc-item-row bg-light p-3 rounded-4 mb-3 border position-relative">
                             <div class="row g-2 pe-4">
@@ -377,7 +382,33 @@
             itemRow.style.setProperty('display', 'flex', 'important');
         }
 
-        // Cart Logic
+        // --- NEW: DIRECT "SHOPEE-STYLE" ADD BUTTON LOGIC ---
+        function addDirectlyToCart(id, name, maxStock) {
+            let existing = cart.find(i => i.id == id);
+            let currentQty = existing ? existing.qty : 0;
+            let qtyToAdd = 1; // Default to adding 1 at a time for quick buttons
+
+            if (currentQty + qtyToAdd > maxStock) {
+                showToast(`<i class="bi bi-exclamation-triangle-fill me-2"></i> Cannot request more than available stock (${maxStock}).`, 'danger');
+                return;
+            }
+
+            if(existing) {
+                existing.qty = parseInt(existing.qty) + qtyToAdd;
+            } else {
+                cart.push({id: id, name: name, qty: qtyToAdd});
+            }
+            
+            updateUI();
+            
+            // Pop the offcanvas open automatically so they see it was added
+            let cartOffcanvas = new bootstrap.Offcanvas(document.getElementById('cartOffcanvas'));
+            cartOffcanvas.show();
+            
+            showToast(`<i class="bi bi-check-circle-fill me-2"></i> Added <b>1</b> x ${name} to cart.`, 'success');
+        }
+
+        // Original Add Item Logic (from the manual dropdown)
         function addItem() {
             let sel = document.getElementById('supplySelect');
             let qty = document.getElementById('qtyInput').value;
@@ -499,14 +530,12 @@
         }
 
         function closePettyCashModal() {
-            // Give it 1 second to submit the form to the hidden iframe, then close and reset the modal
             setTimeout(() => {
                 let modalInstance = bootstrap.Modal.getInstance(document.getElementById('pettyCashModal'));
                 if(modalInstance) {
                     modalInstance.hide();
                     document.getElementById('pettyCashForm').reset();
                     
-                    // Reset modal back to only 1 item row
                     let container = document.getElementById('pcItemsContainer');
                     let rows = container.querySelectorAll('.pc-item-row');
                     for (let i = 1; i < rows.length; i++) {

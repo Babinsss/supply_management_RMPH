@@ -1,318 +1,339 @@
-<x-layouts.admin title="Inventory | Supply Hub">
+<x-layouts.admin title="Inventory Management | Supply Hub">
+
+    {{-- ADMIN TOOLBAR --}}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 bento-card py-3">
+        <h5 class="fw-bolder mb-0 text-dark">
+            <i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Command Center
+        </h5>
+        
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {{-- 1. Petty Cash Ledger --}}
+            <a href="/petty-cash" class="btn btn-sm btn-outline-danger btn-modern fw-bold shadow-sm">
+                <i class="bi bi-wallet2 me-1"></i> Petty Cash
+            </a>
+
+            {{-- 2. Item Usage Report --}}
+            <button type="button" class="btn btn-sm btn-outline-info text-dark btn-modern fw-bold shadow-sm border-info" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
+                <i class="bi bi-graph-up me-1"></i> Item Usage
+            </button>
+
+            {{-- 3. Monthly Report --}}
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+                <i class="bi bi-calendar-check me-1"></i> Monthly Report
+            </button>
+
+            {{-- 4. Print Directory (Silent Print) --}}
+            <button type="button" class="btn btn-sm btn-outline-dark btn-modern fw-bold shadow-sm" onclick="printDirectly('/print-inventory')">
+                <i class="bi bi-printer-fill me-1"></i> Print Directory
+            </button>
+
+            {{-- Separator --}}
+            <div class="vr mx-1 d-none d-md-block text-secondary opacity-25"></div>
+
+            {{-- 5. Add Item (Main Action) --}}
+            <button type="button" class="btn btn-sm btn-primary btn-modern shadow-sm fw-bold px-3" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                <i class="bi bi-plus-lg me-1"></i> Add Supply
+            </button>
+        </div>
+    </div>
     
-    {{-- Top Action Bar with Search & Buttons --}}
-    <div class="mb-3 bento-card py-3">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            
-            {{-- Left Zone: Title & Search --}}
-            <div class="d-flex align-items-center flex-wrap gap-3 flex-grow-1">
-                <h5 class="fw-bolder mb-0 text-dark text-nowrap">
-                    <i class="bi bi-box-seam-fill text-primary me-2"></i> Inventory Directory
-                </h5>
-                
-                {{-- FIX: Locked in width:100% and min-width so it can never be crushed again --}}
-                <div class="input-group flex-grow-1" style="width: 100%; max-width: 500px; min-width: 280px;">
-                    <span class="input-group-text bg-light border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" id="searchInput" class="form-control input-modern border-start-0 rounded-end-4 pl-0" placeholder="Search item, description, supplier, or RIS..." onkeyup="filterInventory()">
+    {{-- DYNAMIC DATA CALCULATION --}}
+    @php
+        // 1. Total Asset Value
+        $totalAssetValue = $supplies->sum(function($item) {
+            return $item->quantity * ($item->unit_price ?? 0);
+        });
+
+        // 2. Stock Health Logic
+        $totalItems = $supplies->count();
+        $lowStockCount = 0;
+        foreach($supplies as $s) {
+            if($s->quantity <= $s->reorder_level) $lowStockCount++;
+        }
+        $goodStockCount = $totalItems - $lowStockCount;
+        $healthPercentage = $totalItems > 0 ? round(($goodStockCount / $totalItems) * 100) : 0;
+
+        // 3. Category Distribution for Donut Chart
+        $categoryData = $supplies->groupBy(function($item) {
+            return $item->category ?: 'Uncategorized';
+        })->map->count();
+        
+        // NEW: Fetch master categories EXACTLY ONCE to prevent lag
+        $masterCategories = \Illuminate\Support\Facades\DB::table('categories')->get();
+    @endphp
+    
+    <style>
+        /* Pulse Animation for Critical Stock */
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+        .pulse-danger {
+            animation: pulse-danger 2s infinite;
+        }
+        
+        /* Action Button Consistency */
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border-radius: 8px;
+        }
+    </style>
+
+    @if(session('success'))
+        <div class="alert alert-success shadow-sm rounded-4 border-0 mb-4 py-3">
+            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i> 
+            <span class="fw-bold">{{ session('success') }}</span>
+        </div>
+    @endif
+
+    <!-- COMMAND CENTER ANALYTICS HEADER -->
+    <div class="row g-4 mb-5">
+        {{-- CARD 1: Total Asset Value --}}
+        <div class="col-md-4">
+            <div class="bento-card bg-primary bg-opacity-10 border border-primary border-opacity-25 d-flex flex-column justify-content-center h-100">
+                <p class="text-primary fw-bold mb-1 text-uppercase small"><i class="bi bi-cash-stack me-1"></i> Estimated Asset Value</p>
+                <h2 class="fw-bolder mb-0 text-primary">₱{{ number_format($totalAssetValue, 2) }}</h2>
+                <div class="mt-2 text-primary opacity-75 small fw-bold">Based on current unit prices</div>
+            </div>
+        </div>
+        
+        {{-- CARD 2: Stock Health Progress --}}
+        <div class="col-md-4">
+            <div class="bento-card bg-body-tertiary border border-secondary-subtle d-flex flex-column justify-content-center h-100">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <p class="text-muted fw-bold mb-0 text-uppercase small"><i class="bi bi-heart-pulse-fill text-danger me-1"></i> Stock Health</p>
+                    <span class="badge {{ $healthPercentage < 50 ? 'bg-danger' : 'bg-success' }}">{{ $healthPercentage }}%</span>
+                </div>
+                <h2 class="fw-bolder mb-2 text-dark">{{ $goodStockCount }} <span class="fs-6 fw-normal text-muted">/ {{ $totalItems }} items healthy</span></h2>
+                <div class="progress" style="height: 6px; border-radius: 10px;">
+                    <div class="progress-bar {{ $healthPercentage < 50 ? 'bg-danger' : 'bg-success' }}" style="width: {{ $healthPercentage }}%"></div>
                 </div>
             </div>
-            
-            {{-- Right Zone: Action Buttons --}}
-            <div class="d-flex flex-wrap justify-content-end gap-2">
-                <a href="/petty-cash" class="btn btn-outline-success btn-modern text-nowrap shadow-sm border">
-                    <i class="bi bi-wallet2 me-1"></i> Petty Cash
-                </a>
-                <button type="button" class="btn btn-outline-info btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
-                    <i class="bi bi-bar-chart-fill me-1"></i> Item Usage
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-modern text-nowrap shadow-sm border" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
-                    <i class="bi bi-calendar-check me-1"></i> Monthly Report
-                </button>
-                <button type="button" onclick="printDirectly('/print-inventory')" class="btn btn-outline-dark btn-modern text-nowrap shadow-sm border">
-                    <i class="bi bi-printer-fill me-1"></i> Print Directory
-                </button>
-                <button class="btn btn-primary btn-modern text-nowrap shadow-sm" data-bs-toggle="modal" data-bs-target="#addSupplyModal">
-                    <i class="bi bi-plus-lg me-1"></i> New Item
-                </button>
+        </div>
+
+        {{-- CARD 3: Category Distribution Donut --}}
+        <div class="col-md-4">
+            <div class="bento-card bg-body border border-secondary-subtle position-relative p-2 h-100 d-flex align-items-center justify-content-center">
+                <div id="categoryDonutChart" class="w-100" style="min-height: 120px;"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- INVENTORY HEATMAP TABLE -->
+    <div class="bento-card mb-5">
+        
+        {{-- UPGRADED DUAL-FILTER HEADER --}}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bolder mb-0"><i class="bi bi-list-columns-reverse text-info me-2"></i> Stock Heatmap</h5>
             
-        </div>
-    </div>
-
-    {{-- Category & Supplier Filters --}}
-    <div class="d-flex justify-content-between flex-wrap gap-3 mb-4 align-items-center">
-        
-        <div class="d-flex flex-wrap gap-2">
-            @php 
-                $activeCategory = session('active_category', $categories->first()->name ?? 'UNCATEGORIZED');
-            @endphp
-
-            @foreach($categories as $cat)
-                <button class="btn btn-sm rounded-pill px-3 fw-bold filter-btn {{ $activeCategory === $cat->name ? 'btn-primary shadow-sm' : 'btn-outline-primary' }}" 
-                        onclick="setCategory('{{ $cat->name }}', this)">
-                    {{ ucwords(strtolower($cat->name)) }}
-                </button>
-            @endforeach
+            <div class="d-flex gap-2" style="max-width: 450px; width: 100%;">
+                <select id="categoryFilter" class="form-select input-modern rounded-4 border-secondary-subtle shadow-sm" style="width: 40%;" onchange="filterInventory()">
+                    <option value="all">All Categories</option>
+                    @foreach($categoryData->keys() as $cat)
+                        <option value="{{ strtolower(trim($cat)) }}">{{ strtoupper($cat) }}</option>
+                    @endforeach
+                </select>
+                
+                <div class="input-group" style="width: 60%;">
+                    <span class="input-group-text bg-body-tertiary border-end-0 rounded-start-4"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="inventorySearch" class="form-control input-modern border-start-0 rounded-end-4 pl-0 shadow-sm" placeholder="Search items..." onkeyup="filterInventory()">
+                </div>
+            </div>
         </div>
 
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-muted small fw-bold text-uppercase text-nowrap"><i class="bi bi-funnel-fill me-1"></i> Supplier:</span>
-            <select id="supplierFilter" class="form-select input-modern py-1 px-3 shadow-sm" style="border-radius: 20px; min-width: 220px;" onchange="filterInventory()">
-                <option value="ALL">All Suppliers</option>
-                @php 
-                    $uniqueSuppliers = collect($supplies)->pluck('supplier')->filter()->unique()->sort(); 
-                @endphp
-                @foreach($uniqueSuppliers as $supplier)
-                    <option value="{{ $supplier }}">{{ strtoupper($supplier) }}</option>
-                @endforeach
-            </select>
-        </div>
-        
-    </div>
-
-    {{-- Main Inventory Table --}}
-    <div class="bento-card mb-4">
-        <div class="table-responsive">
-            <table class="table table-clean mb-0" id="inventoryTable">
-                <thead>
+        <div class="table-responsive" style="max-height: 650px; overflow-y: auto;">
+            <table class="table table-clean align-middle mb-0">
+                <thead class="sticky-top bg-body z-1 border-bottom border-secondary-subtle">
                     <tr>
-                        <th>Item & Details</th>
-                        <th>Current Stock</th>
-                        <th>RIS Number</th>
-                        <th>Date Added</th>
-                        <th class="text-end" style="min-width: 260px;">Actions</th>
+                        <th class="bg-body text-uppercase small text-muted">Item Details</th>
+                        <th class="bg-body text-uppercase small text-muted text-center" style="width: 10%;">Price</th>
+                        <th class="bg-body text-uppercase small text-muted" style="width: 30%;">Stock Heatmap</th>
+                        <th class="bg-body text-uppercase small text-muted text-end" style="width: 35%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($supplies as $item)
-                        <tr class="inventory-row" id="item-row-{{ $item->id }}" data-category="{{ $item->category ?: 'UNCATEGORIZED' }}" data-supplier="{{ $item->supplier }}">
+                        {{-- CRITICAL FIX: The data-category attribute is securely added here --}}
+                        <tr class="inv-row" data-category="{{ strtolower(trim($item->category ?: 'uncategorized')) }}">
                             <td>
-                                <div class="fw-bold text-dark fs-6 item-name">{{ $item->name }}</div>
-                                
-                                <div class="mb-2 mt-1">
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-0 me-1" style="font-size: 0.65rem;">
-                                        {{ $item->category ?: 'UNCATEGORIZED' }}
-                                    </span>
-                                    @if($item->description)
-                                        <span class="text-muted text-uppercase item-desc" style="font-size: 0.70rem; letter-spacing: 0.5px;">
-                                            • {{ $item->description }}
-                                        </span>
-                                    @endif
-                                </div>
-
-                                <div class="d-flex flex-wrap align-items-center gap-3 mt-1">
-                                    @if($item->unit_price)
-                                        <span class="text-success fw-bold" style="font-size: 0.75rem;">
-                                            <i class="bi bi-tag-fill me-1"></i>₱{{ number_format($item->unit_price, 2) }}
-                                        </span>
-                                    @endif
-
-                                    @if($item->supplier)
-                                        <span class="text-muted-soft item-supplier" style="font-size: 0.75rem;"><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span>
-                                    @endif
+                                <div class="fw-bolder text-dark fs-6">{{ $item->name }}</div>
+                                <div class="text-muted-soft small text-uppercase mt-1" style="letter-spacing: 0.5px;">
+                                    <i class="bi bi-tag-fill me-1"></i>{{ $item->category ?: 'Uncategorized' }}
                                     
-                                    @if($item->date_delivered)
-                                        <span class="text-muted-soft" style="font-size: 0.75rem;"><i class="bi bi-calendar-check me-1"></i>Delivered: {{ \Carbon\Carbon::parse($item->date_delivered)->format('M d, Y') }}</span>
+                                    {{-- NEW: Supplier Display --}}
+                                    @if($item->supplier)
+                                        <span class="mx-1 text-secondary opacity-50">|</span>
+                                        <i class="bi bi-building text-primary opacity-75 me-1"></i>{{ $item->supplier }}
                                     @endif
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold text-dark">₱{{ number_format($item->unit_price ?? 0, 2) }}</span>
+                            </td>
+                            <td>
+                                {{-- HEATMAP LOGIC --}}
+                                @php
+                                    $maxVisualStock = $item->reorder_level > 0 ? $item->reorder_level * 3 : 100;
+                                    $fillPercentage = $maxVisualStock > 0 ? min(100, ($item->quantity / $maxVisualStock) * 100) : 0;
+                                    
+                                    if ($item->quantity <= 0) {
+                                        $barColor = 'bg-danger'; $pulse = 'pulse-danger'; $text = 'text-danger'; $status = 'Out of Stock';
+                                    } elseif ($item->quantity <= $item->reorder_level) {
+                                        $barColor = 'bg-danger'; $pulse = 'pulse-danger'; $text = 'text-danger'; $status = 'Critical';
+                                    } elseif ($item->quantity <= $item->reorder_level * 1.5) {
+                                        $barColor = 'bg-warning'; $pulse = ''; $text = 'text-warning'; $status = 'Low';
+                                    } else {
+                                        $barColor = 'bg-success'; $pulse = ''; $text = 'text-success'; $status = 'Healthy';
+                                    }
+                                @endphp
 
-                                    @if($item->expiry_date)
-                                        @php 
-                                            $daysToExpiry = \Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false); 
-                                        @endphp
-                                        
-                                        @if($daysToExpiry < 0)
-                                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger rounded-pill px-2 py-1">
-                                                <i class="bi bi-exclamation-circle-fill"></i> Expired
-                                            </span>
-                                        @elseif($daysToExpiry <= 60)
-                                            <span class="badge bg-warning bg-opacity-25 text-dark border border-warning rounded-pill px-2 py-1">
-                                                <i class="bi bi-clock-history"></i> Expires in {{ floor($daysToExpiry) }} days
-                                            </span>
-                                        @else
-                                            <span class="text-muted-soft" style="font-size: 0.75rem;">
-                                                <i class="bi bi-calendar-check me-1"></i>Exp: {{ \Carbon\Carbon::parse($item->expiry_date)->format('M d, Y') }}
-                                            </span>
-                                        @endif
-                                    @endif
+                                <div class="d-flex justify-content-between align-items-end mb-1">
+                                    <span class="fw-bolder fs-5 {{ $text }}">{{ $item->quantity }} <span class="fs-6 text-muted fw-normal">{{ $item->unit ?? 'pcs' }}</span></span>
+                                    <span class="small fw-bold {{ $text }}">{{ $status }}</span>
                                 </div>
+                                <div class="progress bg-body-tertiary border border-secondary-subtle overflow-visible" style="height: 8px; border-radius: 10px;">
+                                    <div class="progress-bar {{ $barColor }} {{ $pulse }}" style="width: {{ $fillPercentage }}%; border-radius: 10px;" title="Reorder Level: {{ $item->reorder_level }}"></div>
+                                </div>
+                                <div class="text-end mt-1 text-muted-soft" style="font-size: 0.65rem;">Alert Level: {{ $item->reorder_level }}</div>
                             </td>
-                            
-                            {{-- ID tags added for live AJAX syncing --}}
-                            <td>
-                                <span class="fw-bold fs-5 stock-qty" id="qty-{{ $item->id }}" style="transition: color 0.5s ease;">{{ $item->quantity }}</span> {{ $item->unit ?? 'Units' }}
+                            <td class="text-end">
                                 
-                                <span id="badge-{{ $item->id }}">
-                                    @if($item->quantity == 0)
-                                        <span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>
-                                    @elseif($item->quantity <= $item->reorder_level)
-                                        <span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>
-                                    @endif
-                                </span>
-                            </td>
-                            
-                            <td>
-                                @if($item->ris_number)
-                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1 item-ris">
-                                        <i class="bi bi-hash"></i> {{ $item->ris_number }}
-                                    </span>
-                                @else
-                                    <span class="text-muted-soft small fst-italic">Without RIS</span>
-                                @endif
-                            </td>
+                                {{-- 7-BUTTON ACTION ARRAY (FIXED) --}}
+                                <div class="d-flex justify-content-end gap-1 flex-wrap">
+                                    {{-- 1. Visibility --}}
+                                    <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline m-0">
+                                        @csrf
+                                        <button type="submit" class="btn btn-action btn-success text-white shadow-sm" title="Toggle Visibility">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </form>
 
-                            <td>
-                                <div class="fw-bold text-dark" style="font-size: 0.85rem;">
-                                    {{ $item->created_at->format('M d, Y') }}
-                                </div>
-                                <div class="text-muted small">
-                                    {{ $item->created_at->format('h:i A') }}
-                                </div>
-                            </td>
-                            
-                            <td class="text-end text-nowrap">
-                                <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline">
-                                    @csrf
-                                    <button type="submit" class="btn btn-sm btn-modern border shadow-sm me-1 {{ $item->is_visible ? 'btn-success text-white' : 'btn-secondary text-white' }}" title="{{ $item->is_visible ? 'Visible in Portal' : 'Hidden from Portal' }}">
-                                        <i class="bi {{ $item->is_visible ? 'bi-eye-fill' : 'bi-eye-slash-fill' }}"></i>
-                                    </button>
-                                </form>
-                                
-                                {{-- SUPERADMIN ADJUSTMENT BUTTON (Hidden from normal admins) --}}
-                                @if(auth()->check() && auth()->user()->role === 'superadmin')
-                                    <button type="button" class="btn btn-sm btn-light btn-modern text-warning border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#adjustModal-{{ $item->id }}" title="Superadmin Stock Adjustment">
+                                    {{-- 2. Adjust Stock --}}
+                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" data-bs-toggle="modal" data-bs-target="#adjustModal-{{ $item->id }}" title="Adjust Stock">
                                         <i class="bi bi-sliders"></i>
                                     </button>
-                                @endif
 
-                                <button type="button" class="btn btn-sm btn-light btn-modern text-success border shadow-sm me-1" onclick="printDirectly('/bincard/{{ $item->id }}')" title="Bin Card">
-                                    <i class="bi bi-card-list"></i>
-                                </button>
+                                    {{-- 3. Stockcard (Teal List) - SILENT PRINT --}}
+                                    <button type="button" onclick="printDirectly('/stockcard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm" style="color: #20c997;" title="Print Stockcard">
+                                        <i class="bi bi-card-list"></i>
+                                    </button>
 
-                                <button type="button" class="btn btn-sm btn-light btn-modern text-info border shadow-sm me-1" onclick="printDirectly('/rapc/{{ $item->id }}')" title="Report on Actual Physical Count">
-                                    <i class="bi bi-file-earmark-spreadsheet"></i>
-                                </button>
+                                    {{-- 4. RAPC (Blue Document) - SILENT PRINT --}}
+                                    <button type="button" onclick="printDirectly('/rapc/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-info" title="Print RAPC">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                                    </button>
 
-                                <button type="button" class="btn btn-sm btn-light btn-modern text-dark border shadow-sm me-1" onclick="printDirectly('/stockcard/{{ $item->id }}')" title="Stockcard">
-                                    <i class="bi bi-printer"></i>
-                                </button>
+                                    {{-- 5. Bincard (Dark Printer) - SILENT PRINT --}}
+                                    <button type="button" onclick="printDirectly('/bincard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-dark" title="Print Bincard">
+                                        <i class="bi bi-printer"></i>
+                                    </button>
 
-                                <button class="btn btn-sm btn-light btn-modern text-primary border shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}" title="Edit">
-                                    <i class="bi bi-pencil-square"></i>
-                                </button>
-                                
-                                <button class="btn btn-sm btn-light btn-modern text-danger border shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ $item->id }}" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                    {{-- 6. Edit --}}
+                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" data-bs-toggle="modal" data-bs-target="#editModal-{{ $item->id }}" title="Edit Item">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+
+                                    {{-- 7. Delete --}}
+                                    <a href="/delete/{{ $item->id }}" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-danger" onclick="return confirm('Are you sure you want to permanently delete this item?')" title="Delete Item">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No inventory items found. Add some supplies to get started!</td></tr>
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted fw-medium">
+                                <i class="bi bi-box-seam fs-1 d-block mb-3 opacity-25"></i>
+                                Inventory is currently empty.
+                            </td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
 
-    <nav aria-label="Inventory Pagination" class="mb-5">
-        <ul class="pagination justify-content-end" id="paginationControls"></ul>
-    </nav>
+    {{-- ========================================== --}}
+    {{-- SYSTEM MODALS (ADD, EDIT, ADJUST, REPORTS) --}}
+    {{-- ========================================== --}}
 
-    {{-- Item Usage Report Modal --}}
+    {{-- ITEM USAGE REPORT MODAL --}}
     <div class="modal fade" id="itemUsageModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-3 border-0">
+            <div class="modal-content bento-card p-2 border-0">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="fw-bolder text-info"><i class="bi bi-bar-chart-fill me-2"></i>Item Usage Report</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="fw-bolder text-dark"><i class="bi bi-graph-up text-info me-2"></i>Generate Item Usage</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
                     <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Select Item to Analyze</label>
-                            <select id="usageItemId" class="form-select input-modern fw-bold">
-                                @foreach($supplies as $sup)
-                                    <option value="{{ $sup->id }}">{{ $sup->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
                             <select id="usageMonth" class="form-select input-modern">
-                                <option value="01">January</option>
-                                <option value="02">February</option>
-                                <option value="03">March</option>
-                                <option value="04">April</option>
-                                <option value="05">May</option>
-                                <option value="06">June</option>
-                                <option value="07">July</option>
-                                <option value="08">August</option>
-                                <option value="09" selected>September</option>
-                                <option value="10">October</option>
-                                <option value="11">November</option>
-                                <option value="12">December</option>
+                                @for($m=1; $m<=12; ++$m)
+                                    <option value="{{ sprintf('%02d', $m) }}" {{ date('m') == $m ? 'selected' : '' }}>{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
+                                @endfor
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Year</label>
-                            <input type="number" id="usageYear" class="input-modern" value="{{ date('Y') }}">
+                            <input type="number" id="usageYear" class="form-control input-modern" value="{{ date('Y') }}">
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0 pt-2">
+                <div class="modal-footer border-0 pt-3">
                     <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-info btn-modern shadow-sm text-white fw-bolder" onclick="printItemUsage()">
-                        <i class="bi bi-printer-fill me-2"></i> Generate
+                    <button type="button" class="btn btn-info text-white btn-modern shadow-sm fw-bold" onclick="printUsageReport()">
+                        <i class="bi bi-printer-fill me-2"></i> Print Usage
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Monthly Report Modal --}}
+    {{-- MONTHLY REPORT MODAL --}}
     <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bento-card p-3 border-0">
+            <div class="modal-content bento-card p-2 border-0">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="fw-bolder text-dark">Generate Monthly Report</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="fw-bolder text-dark"><i class="bi bi-calendar-check text-secondary me-2"></i>Generate Monthly Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body bg-light rounded-4 p-4 mt-3 border border-secondary-subtle">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Month</label>
                             <select id="reportMonth" class="form-select input-modern">
-                                <option value="01">January</option>
-                                <option value="02">February</option>
-                                <option value="03">March</option>
-                                <option value="04">April</option>
-                                <option value="05">May</option>
-                                <option value="06">June</option>
-                                <option value="07">July</option>
-                                <option value="08" selected>August</option>
-                                <option value="09">September</option>
-                                <option value="10">October</option>
-                                <option value="11">November</option>
-                                <option value="12">December</option>
+                                @for($m=1; $m<=12; ++$m)
+                                    <option value="{{ sprintf('%02d', $m) }}" {{ date('m') == $m ? 'selected' : '' }}>{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
+                                @endfor
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-muted small fw-bold text-uppercase">Year</label>
-                            <input type="number" id="reportYear" class="input-modern" value="{{ date('Y') }}">
+                            <input type="number" id="reportYear" class="form-control input-modern" value="{{ date('Y') }}">
                         </div>
                         <div class="col-12">
                             <label class="form-label text-muted small fw-bold text-uppercase">Category Filter</label>
                             <select id="reportCategory" class="form-select input-modern">
                                 <option value="ALL">All Categories</option>
-                                @foreach($categories as $cat)
+                                @foreach($masterCategories as $cat)
                                     <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
                                 @endforeach
                             </select>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-0 pt-2">
+                <div class="modal-footer border-0 pt-3">
                     <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-modern shadow-sm" onclick="printMonthlyReport()">
+                    <button type="button" class="btn btn-secondary text-white btn-modern shadow-sm fw-bold" onclick="printMonthlyReport()">
                         <i class="bi bi-printer-fill me-2"></i> Print Report
                     </button>
                 </div>
@@ -320,386 +341,302 @@
         </div>
     </div>
 
-    {{-- Add New Item Modal --}}
-    <div class="modal fade text-start" id="addSupplyModal" tabindex="-1" aria-hidden="true">
+    {{-- ADD NEW ITEM MODAL --}}
+    <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content bento-card p-2 border-0">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
                 <form action="/add" method="POST">
                     @csrf
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-dark">Register New Supply</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="fw-bolder text-dark"><i class="bi bi-plus-circle text-success me-2"></i>Add New Supply</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                         <div class="row g-3 mb-3">
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Item Name <span class="text-danger">*</span></label>
-                                <input type="text" class="input-modern" name="name" placeholder="e.g. EPSON 664" required>
+                                <input type="text" class="form-control input-modern" name="name" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Description / Type</label>
-                                <input type="text" class="input-modern" name="description" placeholder="e.g. Printer Ink - Black">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
+                                <select class="form-select input-modern" name="category" required>
+                                    <option value="" disabled selected>Select Category...</option>
+                                    @foreach($masterCategories as $cat)
+                                        <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Initial Stock <span class="text-danger">*</span></label>
-                                <input type="number" class="input-modern" name="quantity" value="0" min="0" required>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Initial Qty <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control input-modern" name="quantity" required min="0">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Unit Price (₱)</label>
-                                <input type="number" step="0.01" class="input-modern" name="unit_price" placeholder="0.00">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Unit (e.g., pcs)</label>
+                                <input type="text" class="form-control input-modern" name="unit" value="pcs">
                             </div>
-                            <div class="col-12"><hr class="my-2 border-light"></div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Price (₱)</label>
+                                <input type="number" step="0.01" class="form-control input-modern" name="unit_price">
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Reorder Alert</label>
+                                <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" value="10" min="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">RIS Number / Ref</label>
+                                <input type="text" class="form-control input-modern" name="ris_number">
+                            </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
-                                <input type="text" class="input-modern" name="supplier" placeholder="e.g. Zuellig Pharma">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Date Delivered</label>
-                                <input type="date" class="input-modern" name="date_delivered">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
-                                <input type="date" class="input-modern" name="expiry_date">
-                            </div>
-                            
-                            <select class="form-select input-modern" name="category" required>
-                                <option value="" disabled selected>Select Category...</option>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
-                                @endforeach
-                            </select>
-                            
-                            <div class="col-12">
-                                <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
-                                <input type="text" class="input-modern" name="ris_number" placeholder="e.g. RIS-2026-07-001">
+                                <input type="text" class="form-control input-modern" name="supplier" placeholder="e.g. Medtek">
                             </div>
                         </div>
                     </div>
-                    <div class="modal-header border-0 pt-0 justify-content-end gap-2">
+                    <div class="modal-header border-0 pt-3 justify-content-end gap-2">
                         <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-plus-lg me-2"></i> Register Item</button>
+                        <button type="submit" class="btn btn-success btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Save to Inventory</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    {{-- Edit, Delete, & Adjustment Modals Loop --}}
+    {{-- DYNAMIC MODALS (Looping for each item) --}}
     @foreach($supplies as $item)
-        <div class="modal fade text-start" id="editModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
+        
+        {{-- EDIT ITEM MODAL --}}
+        <div class="modal fade" id="editModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content bento-card p-2 border-0">
+                <div class="modal-content bento-card p-2 border-0 bg-body">
                     <form action="/inventory/update/{{ $item->id }}" method="POST">
                         @csrf
                         @method('PUT')
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-dark">Edit Item Details</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <h5 class="fw-bolder text-dark"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Item Details</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                             <div class="row g-3 mb-3">
-                                <div class="col-12">
+                                <div class="col-md-6">
                                     <label class="form-label text-muted small fw-bold text-uppercase">Item Name</label>
-                                    <input type="text" class="input-modern" name="name" value="{{ $item->name }}" required>
+                                    <input type="text" class="form-control input-modern" name="name" value="{{ $item->name }}" required>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Description / Type</label>
-                                    <input type="text" class="input-modern" name="description" value="{{ $item->description }}">
-                                </div>
-                                
-                                {{-- EDIT FIX: Stock Quantity field is now strictly readonly --}}
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Stock Quantity</label>
-                                    <input type="number" class="input-modern bg-light text-muted" name="quantity" value="{{ $item->quantity }}" min="0" readonly required title="Quantity can only be updated via the Petty Cash Ledger or Requisitions">
-                                </div>
-                                
-                                <div class="col-md-3">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Unit Price (₱)</label>
-                                    <input type="number" step="0.01" class="input-modern" name="unit_price" value="{{ $item->unit_price }}">
-                                </div>
-                                <div class="col-12"><hr class="my-2 border-light"></div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
-                                    <input type="text" class="input-modern" name="supplier" value="{{ $item->supplier }}">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Date Delivered</label>
-                                    <input type="date" class="input-modern" name="date_delivered" value="{{ $item->date_delivered }}">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Expiry Date</label>
-                                    <input type="date" class="input-modern" name="expiry_date" value="{{ $item->expiry_date }}">
-                                </div>
-                                
-                                <div class="col-md-5">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">Category <span class="text-danger">*</span></label>
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
                                     <select class="form-select input-modern" name="category" required>
                                         <option value="" disabled>Select Category...</option>
-                                        @foreach($categories as $cat)
+                                        @foreach($masterCategories as $cat)
                                             <option value="{{ $cat->name }}" {{ $item->category == $cat->name ? 'selected' : '' }}>
                                                 {{ strtoupper($cat->name) }}
                                             </option>
                                         @endforeach
                                     </select>
                                 </div>
-                                
-                                <div class="col-12">
-                                    <label class="form-label text-muted small fw-bold text-uppercase">RIS Number <span class="fw-normal text-lowercase">(Optional)</span></label>
-                                    <input type="text" class="input-modern" name="ris_number" value="{{ $item->ris_number }}">
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Quantity</label>
+                                    <input type="number" class="form-control input-modern fw-bolder text-primary" name="quantity" value="{{ $item->quantity }}" required min="0">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Unit</label>
+                                    <input type="text" class="form-control input-modern" name="unit" value="{{ $item->unit }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Price (₱)</label>
+                                    <input type="number" step="0.01" class="form-control input-modern" name="unit_price" value="{{ $item->unit_price }}">
+                                </div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase text-danger">Reorder Alert Level</label>
+                                    <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" value="{{ $item->reorder_level }}" min="0">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
+                                    <input type="text" class="form-control input-modern" name="supplier" value="{{ $item->supplier }}" placeholder="Supplier Name">
                                 </div>
                             </div>
                         </div>
-                        <div class="modal-header border-0 pt-0 justify-content-end gap-2">
+                        <div class="modal-header border-0 pt-3 justify-content-end gap-2">
                             <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-save me-2"></i> Save Changes</button>
+                            <button type="submit" class="btn btn-primary btn-modern shadow-sm"><i class="bi bi-save2-fill me-1"></i> Update Item</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
 
-        <div class="modal fade" id="deleteModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
+        {{-- ADJUST STOCK MODAL --}}
+        <div class="modal fade" id="adjustModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content bento-card p-3 border-0">
-                    <div class="modal-header border-0 pb-0">
-                        <h5 class="fw-bolder text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirm Deletion</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body py-4">
-                        <p class="mb-0 text-dark">Are you sure you want to permanently delete <strong>{{ $item->name }}</strong>?</p>
-                        <p class="small text-muted mt-2 mb-0">This will remove it from the inventory directory. This action cannot be undone.</p>
-                    </div>
-                    <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                        <a href="/delete/{{ $item->id }}" class="btn btn-danger btn-modern shadow-sm">
-                            <i class="bi bi-trash-fill me-1"></i> Delete Item
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- SUPERADMIN ADJUSTMENT MODAL (Hidden from normal admins) --}}
-        @if(auth()->check() && auth()->user()->role === 'superadmin')
-        <div class="modal fade text-start" id="adjustModal-{{ $item->id }}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content bento-card p-2 border-0">
-                    <form action="/superadmin/inventory/adjust/{{ $item->id }}" method="POST">
+                <div class="modal-content bento-card p-2 border-0 bg-body">
+                    <form action="/inventory/adjust/{{ $item->id }}" method="POST">
                         @csrf
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="fw-bolder text-warning"><i class="bi bi-sliders me-2"></i> Stock Adjustment</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <h5 class="fw-bolder text-dark"><i class="bi bi-sliders text-warning me-2"></i>Adjust Inventory Stock</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body py-3">
-                            <div class="alert alert-warning border-0 rounded-3 py-2 small fw-bold shadow-sm mb-3">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Current Stock: {{ $item->quantity }}
-                            </div>
+                        <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
+                            <p class="text-muted small mb-3">Use this form to manually correct physical count discrepancies for <strong>{{ $item->name }}</strong>.</p>
                             
                             <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Action <span class="text-danger">*</span></label>
-                                <select class="form-select input-modern fw-bold" name="action" required>
-                                    <option value="subtract" class="text-danger">Deduct Stock (-)</option>
-                                    <option value="add" class="text-success">Add Stock (+)</option>
-                                </select>
+                                <label class="form-label text-muted small fw-bold text-uppercase">Current System Quantity</label>
+                                <input type="number" class="form-control input-modern" value="{{ $item->quantity }}" readonly>
                             </div>
-                            
                             <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Quantity to Adjust <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control input-modern" name="quantity" min="1" required>
+                                <label class="form-label text-muted small fw-bold text-uppercase">Adjustment Amount <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control input-modern fw-bolder text-warning" name="adjustment" required placeholder="e.g. 50 (to add) or -20 (to deduct)">
+                                <div class="form-text small">Use a negative number to deduct stock.</div>
                             </div>
-
-                            <div class="mb-2">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Reason for Correction <span class="text-danger">*</span></label>
-                                <select class="form-select input-modern" name="reason" required>
-                                    <option value="" disabled selected>Select reason...</option>
-                                    <option value="PHYSICAL COUNT DISCREPANCY">Physical Count Discrepancy</option>
-                                    <option value="DATA ENTRY ERROR">Data Entry Error (Correction)</option>
-                                    <option value="DAMAGED / EXPIRED">Damaged / Expired Item</option>
-                                </select>
+                            <div class="mb-0">
+                                <label class="form-label text-muted small fw-bold text-uppercase">Remarks / Reason <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control input-modern" name="remarks" required placeholder="e.g. Physical inventory correction">
                             </div>
                         </div>
-                        <div class="modal-footer border-0 pt-0">
+                        <div class="modal-header border-0 pt-3 justify-content-end gap-2">
                             <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bolder"><i class="bi bi-check2-circle me-1"></i> Confirm Adjustment</button>
+                            <button type="submit" class="btn btn-warning btn-modern shadow-sm text-dark fw-bold"><i class="bi bi-check2-circle me-1"></i> Apply Adjustment</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-        @endif
+
     @endforeach
 
     <x-slot name="scripts">
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
         <script>
+            // 1. SKELETON LOADERS
+            document.addEventListener('DOMContentLoaded', () => {
+                const rows = document.querySelectorAll('.inv-row td');
+                rows.forEach(cell => cell.classList.add('skeleton'));
+                setTimeout(() => rows.forEach(cell => cell.classList.remove('skeleton')), 450);
+            });
+
+            // 2. APEXCHARTS: CATEGORY DONUT
+            document.addEventListener('DOMContentLoaded', function () {
+                const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                
+                var options = {
+                    series: {!! json_encode($categoryData->values()) !!},
+                    labels: {!! json_encode($categoryData->keys()) !!},
+                    chart: { type: 'donut', height: 160, background: 'transparent' },
+                    theme: { mode: isDark ? 'dark' : 'light' },
+                    stroke: { show: true, colors: isDark ? '#1e293b' : '#ffffff', width: 2 },
+                    dataLabels: { enabled: false },
+                    plotOptions: {
+                        pie: {
+                            donut: {
+                                size: '75%',
+                                labels: {
+                                    show: true,
+                                    name: { show: false },
+                                    value: {
+                                        show: true,
+                                        fontSize: '24px',
+                                        fontWeight: 800,
+                                        color: isDark ? '#f8fafc' : '#0f172a',
+                                        formatter: function (val) { return val; }
+                                    },
+                                    total: {
+                                        show: true,
+                                        showAlways: true,
+                                        label: 'Total',
+                                        color: isDark ? '#f8fafc' : '#0f172a',
+                                        formatter: function (w) {
+                                            return w.globals.seriesTotals.reduce((a, b) => { return a + b }, 0)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    legend: { show: false }
+                };
+                new ApexCharts(document.querySelector("#categoryDonutChart"), options).render();
+            });
+
+            // 3. BULLETPROOF DUAL-FILTER (Search + Category)
+            let searchTimeout = null;
+
+            function filterInventory() {
+                let textInput = document.getElementById('inventorySearch').value.toLowerCase().trim();
+                let categoryInput = document.getElementById('categoryFilter').value.toLowerCase().trim();
+                
+                if (searchTimeout) clearTimeout(searchTimeout);
+
+                searchTimeout = setTimeout(() => {
+                    let rows = document.querySelectorAll('.inv-row');
+                    
+                    rows.forEach(row => {
+                        let textContent = row.innerText.toLowerCase();
+                        
+                        // Safely grab the category tag we added to the <tr>
+                        let rawCat = row.getAttribute('data-category');
+                        let rowCategory = rawCat ? rawCat.toLowerCase().trim() : 'uncategorized';
+                        
+                        // Check if row passes BOTH filters
+                        let matchesText = textContent.includes(textInput);
+                        let matchesCategory = (categoryInput === 'all' || rowCategory === categoryInput);
+
+                        if (matchesText && matchesCategory) {
+                            if (row.style.display === 'none') {
+                                row.style.display = '';
+                                let cells = row.querySelectorAll('td');
+                                cells.forEach(c => c.classList.add('skeleton'));
+                                setTimeout(() => cells.forEach(c => c.classList.remove('skeleton')), 300);
+                            }
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                }, 150); // Fast 150ms debounce
+            }
+            
+            // 4. REPORT PRINTING LOGIC
+            function printMonthlyReport() {
+                let month = document.getElementById('reportMonth').value;
+                let year = document.getElementById('reportYear').value;
+                let category = document.getElementById('reportCategory').value;
+                
+                bootstrap.Modal.getInstance(document.getElementById('monthlyReportModal')).hide();
+                printDirectly(`/print-inventory?month=${month}&year=${year}&category=${encodeURIComponent(category)}`);
+            }
+
+            function printUsageReport() {
+                let month = document.getElementById('usageMonth').value;
+                let year = document.getElementById('usageYear').value;
+                
+                bootstrap.Modal.getInstance(document.getElementById('itemUsageModal')).hide();
+                printDirectly(`/item-usage?month=${month}&year=${year}`);
+            }
+
+            // 5. SILENT PRINTING LOGIC (Hidden Iframe)
             function printDirectly(url) {
+                // Find or create a hidden iframe
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
                     printFrame.id = 'hiddenPrintFrame';
-                    printFrame.style.cssText = 'width:0; height:0; border:none; position:absolute;';
+                    printFrame.style.cssText = 'width:0; height:0; border:none; position:absolute; z-index:-1;';
                     document.body.appendChild(printFrame);
                 }
+                
+                // Load the URL into the hidden iframe
                 printFrame.src = url;
+                
+                // Wait for it to load, then trigger the print dialog
                 printFrame.onload = () => { 
                     printFrame.contentWindow.focus(); 
                     printFrame.contentWindow.print(); 
                 };
             }
-
-            function printMonthlyReport() {
-                let month = document.getElementById('reportMonth').value;
-                let year = document.getElementById('reportYear').value;
-                let category = document.getElementById('reportCategory').value;
-                let url = `/print-inventory?month=${month}&year=${year}&category=${encodeURIComponent(category)}`;
-                
-                let modalElement = document.getElementById('monthlyReportModal');
-                let modalInstance = bootstrap.Modal.getInstance(modalElement);
-                if(modalInstance) modalInstance.hide();
-                printDirectly(url);
-            }
-
-            function printItemUsage() {
-                let itemId = document.getElementById('usageItemId').value;
-                let month = document.getElementById('usageMonth').value;
-                let year = document.getElementById('usageYear').value;
-                
-                let url = `/print-item-usage?item_id=${itemId}&month=${month}&year=${year}`;
-                
-                let modalElement = document.getElementById('itemUsageModal');
-                let modalInstance = bootstrap.Modal.getInstance(modalElement);
-                if(modalInstance) modalInstance.hide();
-                
-                printDirectly(url);
-            }
-
-            let currentPage = 1;
-            const rowsPerPage = 10; 
-            
-            // Set the active category directly from Laravel session data
-            let currentCategory = '{!! session("active_category", $categories->first()->name ?? "") !!}';
-
-            function setCategory(cat, btnElement) {
-                currentCategory = cat;
-                currentPage = 1; 
-
-                document.querySelectorAll('.filter-btn').forEach(btn => {
-                    btn.classList.remove('btn-primary', 'shadow-sm');
-                    btn.classList.add('btn-outline-primary');
-                });
-                btnElement.classList.remove('btn-outline-primary');
-                btnElement.classList.add('btn-primary', 'shadow-sm');
-
-                applyFiltersAndPagination();
-            }
-
-            function filterInventory() {
-                currentPage = 1; 
-                applyFiltersAndPagination();
-            }
-
-            function applyFiltersAndPagination() {
-                let searchText = document.getElementById('searchInput').value.toLowerCase();
-                let currentSupplier = document.getElementById('supplierFilter').value;
-                
-                let allRows = document.querySelectorAll('.inventory-row');
-                let visibleRows = [];
-
-                allRows.forEach(row => {
-                    let rowCategory = row.getAttribute('data-category');
-                    let rowSupplier = row.getAttribute('data-supplier') || '';
-                    let rowText = row.innerText.toLowerCase();
-                    
-                    let matchesSearch = rowText.includes(searchText);
-                    let matchesCategory = (currentCategory === '' || rowCategory === currentCategory);
-                    let matchesSupplier = (currentSupplier === 'ALL' || rowSupplier === currentSupplier);
-
-                    // Combine all three conditions
-                    if (matchesSearch && matchesCategory && matchesSupplier) {
-                        visibleRows.push(row);
-                    }
-                    row.style.display = 'none'; 
-                });
-
-                let totalPages = Math.ceil(visibleRows.length / rowsPerPage) || 1;
-                if (currentPage > totalPages) currentPage = totalPages;
-
-                let startIndex = (currentPage - 1) * rowsPerPage;
-                let endIndex = startIndex + rowsPerPage;
-
-                visibleRows.forEach((row, index) => {
-                    if (index >= startIndex && index < endIndex) {
-                        row.style.display = '';
-                    }
-                });
-
-                renderPagination(totalPages);
-            }
-
-            function changePage(page) {
-                currentPage = page;
-                applyFiltersAndPagination();
-                window.scrollTo({ top: 0, behavior: 'smooth' }); 
-            }
-
-            function renderPagination(totalPages) {
-                let container = document.getElementById('paginationControls');
-                let html = '';
-
-                if (totalPages > 1) {
-                    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                                <button class="page-link shadow-sm" onclick="changePage(${currentPage - 1})">Previous</button>
-                             </li>`;
-                    
-                    for (let i = 1; i <= totalPages; i++) {
-                        html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
-                                    <button class="page-link shadow-sm" onclick="changePage(${i})">${i}</button>
-                                 </li>`;
-                    }
-
-                    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                                <button class="page-link shadow-sm" onclick="changePage(${currentPage + 1})">Next</button>
-                             </li>`;
-                }
-
-                container.innerHTML = html;
-            }
-
-            // --- LIVE INVENTORY SYNC (EVERY 10 SECONDS) ---
-            setInterval(() => {
-                fetch('/api/inventory/live')
-                    .then(response => response.json())
-                    .then(data => {
-                        data.forEach(item => {
-                            let qtyElement = document.getElementById(`qty-${item.id}`);
-                            let badgeElement = document.getElementById(`badge-${item.id}`);
-                            
-                            if(qtyElement) {
-                                // If quantity changed, update it and flash blue
-                                if(qtyElement.innerText != item.quantity) {
-                                    qtyElement.innerText = item.quantity;
-                                    qtyElement.style.color = '#0d6efd'; // Bootstrap Primary Blue
-                                    
-                                    // Reset color back to normal after 1.5 seconds
-                                    setTimeout(() => { qtyElement.style.color = ''; }, 1500);
-                                }
-
-                                // Update warning badges dynamically
-                                if(item.quantity == 0) {
-                                    badgeElement.innerHTML = `<span class="badge bg-danger rounded-pill ms-2"><i class="bi bi-x-octagon-fill"></i> Out of Stock</span>`;
-                                } else if(item.quantity <= item.reorder_level) {
-                                    badgeElement.innerHTML = `<span class="badge bg-warning text-dark rounded-pill ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Low Stock</span>`;
-                                } else {
-                                    badgeElement.innerHTML = '';
-                                }
-                            }
-                        });
-                    })
-                    .catch(error => console.error('Error syncing live inventory:', error));
-            }, 10000); // 10,000 milliseconds = 10 seconds
-
-            document.addEventListener('DOMContentLoaded', () => {
-                applyFiltersAndPagination();
-            });
         </script>
     </x-slot>
-
 </x-layouts.admin>

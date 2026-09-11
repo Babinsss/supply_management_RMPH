@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,18 +11,72 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; }
-        .bento-card { background: #ffffff; border-radius: 1.25rem; border: none; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.03); padding: 1.5rem; }
-        .input-modern { border-radius: 0.75rem; border: 1px solid #e2e8f0; background-color: #f8fafc; padding: 0.6rem 1rem; width: 100%; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; transition: background-color 0.3s ease, color 0.3s ease; }
+        .bento-card { background: #ffffff; border-radius: 1.25rem; border: none; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.03); padding: 1.5rem; transition: background-color 0.3s ease, transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease; }
+        .input-modern { border-radius: 0.75rem; border: 1px solid #e2e8f0; background-color: #f8fafc; padding: 0.6rem 1rem; width: 100%; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
         .btn-modern { border-radius: 0.75rem; font-weight: 700; padding: 0.6rem 1.2rem; }
         
+        /* --- PREMIUM BENTO CARD HOVER PHYSICS --- */
+        .bento-card:not(.modal-content):hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12) !important;
+        }
+        
+        /* Smooth table row hovers */
+        .table-clean tbody tr { transition: background-color 0.2s ease; }
+        .table-clean tbody tr:hover { background-color: rgba(13, 110, 253, 0.04); }
+
+        /* --- SKELETON LOADERS --- */
+        .skeleton {
+            position: relative;
+            overflow: hidden;
+            background-color: #e2e8f0;
+            color: transparent !important;
+            border-color: transparent !important;
+            user-select: none;
+            pointer-events: none;
+            border-radius: 0.5rem;
+        }
+        .skeleton::after {
+            content: "";
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            transform: translateX(-100%);
+            background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.5) 20%, rgba(255, 255, 255, 0.5) 60%, rgba(255, 255, 255, 0) 100%);
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 100% { transform: translateX(100%); } }
+        .skeleton * { visibility: hidden !important; }
+
+        /* --- NATIVE DARK MODE OVERRIDES --- */
+        [data-bs-theme="dark"] body { background-color: #0f172a; color: #f8fafc; }
+        [data-bs-theme="dark"] .bento-card { background: #1e293b; box-shadow: 0 4px 20px -2px rgba(0,0,0,0.3); }
+        [data-bs-theme="dark"] .input-modern { background-color: #0f172a; border-color: #334155; color: #f8fafc; }
+        [data-bs-theme="dark"] .input-modern:focus { background-color: #1e293b; }
+        [data-bs-theme="dark"] .text-dark { color: #f8fafc !important; }
+        [data-bs-theme="dark"] .bg-light { background-color: #334155 !important; }
+        [data-bs-theme="dark"] .dropdown-menu { background-color: #1e293b; border-color: #334155; }
+        [data-bs-theme="dark"] .dropdown-item.text-dark { color: #f8fafc !important; }
+        [data-bs-theme="dark"] .dropdown-item:hover { background-color: #334155; }
+        [data-bs-theme="dark"] .border-secondary-subtle { border-color: #334155 !important; }
+        [data-bs-theme="dark"] .table { color: #f8fafc; --bs-table-color: #f8fafc; --bs-table-bg: transparent; --bs-table-border-color: #334155; }
+        [data-bs-theme="dark"] .table-clean tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+        [data-bs-theme="dark"] .skeleton { background-color: #334155; }
+        [data-bs-theme="dark"] .skeleton::after { background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.05) 60%, rgba(255, 255, 255, 0) 100%); }
+
         /* Responsive Navigation */
         @media (max-width: 768px) {
             .nav-actions { flex-direction: column; width: 100%; }
-            .nav-actions a { width: 100%; margin-bottom: 0.5rem; }
+            .nav-actions a, .nav-actions .dropdown { width: 100%; margin-bottom: 0.5rem; }
+            .nav-actions .dropdown .btn { width: 100%; }
             .brand-logo { height: 60px !important; }
         }
     </style>
+    
+    <script>
+        const savedTheme = localStorage.getItem('rmph_theme') || 'light';
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    </script>
 </head>
 <body>
     <div class="container-fluid container-lg py-4">
@@ -30,7 +84,7 @@
             <div class="d-flex align-items-center gap-3">
                 <img src="{{ asset('images/supply-logo2.png') }}" alt="RMPH Supply Logo" class="brand-logo" style="height: 70px; width: auto;">
                 <div>
-                    <h4 class="mb-0 fw-bolder">Supply Hub</h4>
+                    <h4 class="mb-0 fw-bolder text-dark">Supply Hub</h4>
                     <span class="text-muted small fw-bold">Supply Section</span>
                 </div>
             </div>
@@ -40,7 +94,6 @@
                 <a href="/inventory" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-box-seam-fill me-2"></i>Inventory</a>
                 <a href="/portal" target="_blank" class="btn btn-dark btn-modern shadow-sm"><i class="bi bi-box-arrow-up-right me-2"></i>Portal</a>
                 
-                {{-- SUPERADMIN ONLY DROPDOWN --}}
                 @if(auth()->check() && auth()->user()->role === 'superadmin')
                     <div class="dropdown">
                         <button class="btn btn-primary btn-modern shadow-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -77,8 +130,11 @@
                     </div>
                 @endif
                 
-                {{-- User Profile & Logout --}}
                 <div class="ms-md-3 d-flex align-items-center gap-3 border-start ps-md-3 pt-2 pt-md-0 border-secondary-subtle">
+                    <button class="btn btn-sm btn-outline-secondary rounded-circle px-2 shadow-sm" id="darkModeToggle" title="Toggle Night Shift">
+                        <i class="bi bi-moon-stars-fill" id="darkModeIcon"></i>
+                    </button>
+
                     @auth
                         <span class="fw-bold text-dark"><i class="bi bi-person-circle text-primary me-1"></i> {{ Auth::user()->name }}</span>
                         <form method="POST" action="/logout" class="d-inline m-0">
@@ -96,6 +152,38 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('darkModeToggle');
+            const icon = document.getElementById('darkModeIcon');
+            const htmlElement = document.documentElement;
+            
+            updateIcon(htmlElement.getAttribute('data-bs-theme'));
+
+            toggleBtn.addEventListener('click', () => {
+                const isDark = htmlElement.getAttribute('data-bs-theme') === 'dark';
+                const newTheme = isDark ? 'light' : 'dark';
+                
+                htmlElement.setAttribute('data-bs-theme', newTheme);
+                localStorage.setItem('rmph_theme', newTheme);
+                updateIcon(newTheme);
+            });
+
+            function updateIcon(theme) {
+                if (theme === 'dark') {
+                    icon.classList.remove('bi-moon-stars-fill');
+                    icon.classList.add('bi-sun-fill', 'text-warning');
+                    toggleBtn.classList.replace('btn-outline-secondary', 'btn-outline-light');
+                } else {
+                    icon.classList.remove('bi-sun-fill', 'text-warning');
+                    icon.classList.add('bi-moon-stars-fill');
+                    toggleBtn.classList.replace('btn-outline-light', 'btn-outline-secondary');
+                }
+            }
+        });
+    </script>
+    
     {{ $scripts ?? '' }}
 </body>
 </html>

@@ -77,8 +77,13 @@
                 <td class="desc-col">{{ $i->name }} {{ $i->description ? ' - ' . $i->description : '' }}</td>
                 <td>{{ $i->unit_price ? number_format($i->unit_price, 2) : '' }}</td>
                 <td>{{ $i->quantity }}</td>
-                <td>{{ $i->unit }}</td>
-                {{-- Dynamically outputs historical stock balances --}}
+                
+                <!-- Hides 'PCS' completely, but will show 'REAM' or 'BOX' -->
+                <td style="text-transform: uppercase; font-weight: bold;">
+                    {{ strtoupper($i->unit) === 'PCS' ? '' : $i->unit }}
+                </td>
+                
+                <!-- Restored the 12-month loop -->
                 @for($m = 1; $m <= 12; $m++)
                     <td>{{ $i->monthly_balances[$m] ?? '' }}</td>
                 @endfor
