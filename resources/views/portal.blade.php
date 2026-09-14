@@ -133,8 +133,8 @@
                         <div class="p-4 bg-light rounded-4 mb-4 border border-white border-4 shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <label class="form-label text-muted small fw-bold text-uppercase mb-0"><i class="bi bi-search me-2"></i>Manual Item Search</label>
-                                <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" onclick="openPettyCashModal()">
-                                    <i class="bi bi-wallet2 me-1"></i> Petty Cash
+                                <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm text-nowrap" style="font-size: 0.75rem;" onclick="openPettyCashModal()">
+                                    <i class="bi bi-wallet2 me-1"></i> Purchase Requisition
                                 </button>
                             </div>
                             
