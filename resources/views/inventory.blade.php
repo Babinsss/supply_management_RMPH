@@ -187,6 +187,11 @@
                                         <span class="mx-1 text-secondary opacity-50">|</span>
                                         <i class="bi bi-building text-primary opacity-75 me-1"></i>{{ $item->supplier }}
                                     @endif
+
+                                    @if($item->ris_number)
+                                        <span class="mx-1 text-secondary opacity-50">|</span>
+                                        <i class="bi bi-upc-scan text-success opacity-75 me-1"></i>RIS: {{ $item->ris_number }}
+                                    @endif
                                 </div>
                             </td>
                             <td class="text-center">
@@ -232,10 +237,12 @@
                                         </button>
                                     </form>
 
-                                    {{-- 2. Adjust Stock (DYNAMIC TRIGGER) --}}
+                                    {{-- 2. Adjust Stock (SUPERADMIN ONLY) --}}
+                                    @if(auth()->user()->role === 'superadmin')
                                     <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" onclick="openAdjustModal({{ $item->id }}, '{{ addslashes($item->name) }}', {{ $item->quantity }})" title="Adjust Stock">
                                         <i class="bi bi-sliders"></i>
                                     </button>
+                                    @endif
 
                                     {{-- 3. Stockcard (Teal List) --}}
                                     <button type="button" onclick="printDirectly('/stockcard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm" style="color: #20c997;" title="Print Stockcard">
@@ -253,7 +260,7 @@
                                     </button>
 
                                     {{-- 6. Edit (DYNAMIC TRIGGER) --}}
-                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" onclick="openEditModal({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ $item->category }}', {{ $item->quantity }}, '{{ $item->unit }}', {{ $item->unit_price ?? 0 }}, {{ $item->reorder_level }}, '{{ addslashes($item->supplier) }}')" title="Edit Item">
+                                    <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" onclick="openEditModal({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ $item->category }}', {{ $item->quantity }}, '{{ $item->unit }}', {{ $item->unit_price ?? 0 }}, {{ $item->reorder_level }}, '{{ addslashes($item->supplier) }}', '{{ addslashes($item->ris_number) }}')" title="Edit Item">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
@@ -480,11 +487,15 @@
                             </div>
                         </div>
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small fw-bold text-uppercase text-danger">Reorder Alert Level</label>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase text-danger">Reorder Alert</label>
                                 <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" id="editReorder" min="0">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted small fw-bold text-uppercase">RIS Number</label>
+                                <input type="text" class="form-control input-modern" name="ris_number" id="editRis" placeholder="RIS Number">
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
                                 <input type="text" class="form-control input-modern" name="supplier" id="editSupplier" placeholder="Supplier Name">
                             </div>
@@ -621,7 +632,7 @@
             }
 
             // 5. DYNAMIC MODAL TRIGGERS (Replaces the 1000 hidden modals!)
-            function openEditModal(id, name, category, qty, unit, price, reorder, supplier) {
+            function openEditModal(id, name, category, qty, unit, price, reorder, supplier, ris_number) {
                 document.getElementById('masterEditForm').action = `/inventory/update/${id}`;
                 
                 document.getElementById('editName').value = name;
@@ -631,6 +642,7 @@
                 document.getElementById('editPrice').value = price;
                 document.getElementById('editReorder').value = reorder;
                 document.getElementById('editSupplier').value = supplier;
+                document.getElementById('editRis').value = ris_number;
                 
                 new bootstrap.Modal(document.getElementById('masterEditModal')).show();
             }
