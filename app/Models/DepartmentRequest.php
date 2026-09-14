@@ -12,7 +12,7 @@ class DepartmentRequest extends Model
     protected $table = 'department_requests';
 
     protected $fillable = [
-        'batch_id', 'department_name', 'requested_by', 'supply_id', 'quantity', 'purpose', 'status','issued_by'
+        'batch_id', 'department_name', 'requested_by', 'supply_id', 'quantity', 'purpose', 'status','issued_by','is_emergency'
     ];
 
     // Inverse of relationship

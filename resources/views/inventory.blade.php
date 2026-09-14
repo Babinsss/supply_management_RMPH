@@ -225,8 +225,10 @@
                                     {{-- 1. Visibility --}}
                                     <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline m-0">
                                         @csrf
-                                        <button type="submit" class="btn btn-action btn-success text-white shadow-sm" title="Toggle Visibility">
-                                            <i class="bi bi-eye"></i>
+                                        <button type="submit" 
+                                            class="btn btn-action {{ $item->is_visible ? 'btn-success' : 'btn-outline-secondary' }} shadow-sm" 
+                                            title="{{ $item->is_visible ? 'Hide from Portal' : 'Show in Portal' }}">
+                                            <i class="bi {{ $item->is_visible ? 'bi-eye text-white' : 'bi-eye-slash text-muted' }}"></i>
                                         </button>
                                     </form>
 

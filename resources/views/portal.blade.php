@@ -37,9 +37,18 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Emergency Pulse */
+        @keyframes pulse-warning {
+            0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+        }
+        .pulse-warning { animation: pulse-warning 2s infinite; }
     </style>
 </head>
 <body>
+
 
     {{-- Toast Notification Container --}}
     <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
@@ -55,13 +64,32 @@
         @csrf
         <div class="container checkout-container">
             
-            <div class="text-center mb-5">
+            <div class="text-center mb-4">
                 <img src="{{ asset('images/supply-logo2.png') }}" alt="RMPH Supply Logo" style="height: 120px; width: auto;" class="mb-3">
                 <h2 class="fw-bolder tracking-tight">Supply Requisition</h2>
                 <p class="text-muted fw-medium">Department Portal</p>
             </div>
 
+            {{-- DYNAMIC SCHEDULING BANNERS --}}
+            @if($portalMode === 'NORMAL')
+                <div class="alert bg-primary bg-opacity-10 border border-primary border-opacity-25 text-primary text-center rounded-4 p-3 mb-4 shadow-sm fw-bold">
+                    <i class="bi bi-clock-history me-2"></i> Normal Operations: Mon/Wed 8:00 AM - 5:00 PM
+                </div>
+            @elseif($portalMode === 'CLOSED_WEEKEND' || $portalMode === 'CLOSED_OFF_HOURS')
+                <div id="closedBanner" class="alert bg-danger bg-opacity-10 border border-danger border-opacity-50 text-danger text-center rounded-4 p-5 mb-4 shadow-sm">
+                    <i class="bi bi-shield-lock-fill fs-1 d-block mb-3"></i>
+                    <h4 class="fw-bolder">SYSTEM CLOSED</h4>
+                    
+                    @if($portalMode === 'CLOSED_WEEKEND')
+                        <p class="mb-0 text-dark fw-medium">Standard requesting is closed Friday through Sunday. Normal operations resume Monday at 8:00 AM.</p>
+                    @else
+                        <p class="mb-0 text-dark fw-medium">Standard requesting is currently outside of operating hours (8:00 AM - 5:00 PM). Please wait until the next business day.</p>
+                    @endif
+                </div>
+            @endif
+
             @if(session('success'))
+                {{-- (Keep your existing success alert block here) --}}
                 <div class="alert alert-success border-0 rounded-4 p-4 mb-4 text-center shadow-sm">
                     <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i> 
                     <h5 class="fw-bold text-success mb-3">{{ session('success') }}</h5>
@@ -73,11 +101,15 @@
                 </div>
             @endif
             
-            <div class="row g-4 mb-5">
+            {{-- HIDDEN FLAG FOR BACKEND --}}
+            <input type="hidden" name="is_emergency" id="isEmergencyFlag" value="{{ $portalMode !== 'NORMAL' ? '1' : '0' }}">
+
+            {{-- THE MAIN PORTAL UI (Hidden initially if CLOSED) --}}
+            <div class="row g-4 mb-5" id="mainPortalUI" style="{{ ($portalMode === 'CLOSED_WEEKEND' || $portalMode === 'CLOSED_OFF_HOURS') ? 'display: none;' : '' }}">
                 
                 {{-- Left Column: Form & Manual Item Selection --}}
                 <div class="col-lg-5">
-                    <div class="bento-card h-100">
+                    <div class="bento-card h-100 {{ $portalMode !== 'NORMAL' ? 'border border-danger border-2' : '' }}">
                         <div class="mb-4">
                             <label class="form-label text-muted small fw-bold text-uppercase">Department</label>
                             <select class="form-select input-modern mb-3" name="department_name" id="departmentSelect" required onchange="updateRequestor()">
@@ -101,8 +133,6 @@
                         <div class="p-4 bg-light rounded-4 mb-4 border border-white border-4 shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <label class="form-label text-muted small fw-bold text-uppercase mb-0"><i class="bi bi-search me-2"></i>Manual Item Search</label>
-                                
-                                {{-- Petty Cash Trigger Button --}}
                                 <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-3 shadow-sm" onclick="openPettyCashModal()">
                                     <i class="bi bi-wallet2 me-1"></i> Petty Cash
                                 </button>
@@ -128,18 +158,19 @@
                         </div>
 
                         <div>
-                            <label class="form-label text-muted small fw-bold text-uppercase">Purpose / Remarks</label>
-                            <textarea class="input-modern" name="purpose" rows="2" placeholder="Required for approval..." required></textarea>
+                            <label class="form-label small fw-bold text-uppercase {{ $portalMode !== 'NORMAL' ? 'text-danger' : 'text-muted' }}">
+                                {{ $portalMode !== 'NORMAL' ? 'EMERGENCY JUSTIFICATION' : 'Purpose / Remarks' }} <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="input-modern {{ $portalMode !== 'NORMAL' ? 'border-danger bg-danger bg-opacity-10 text-danger' : '' }}" name="purpose" rows="2" placeholder="{{ $portalMode !== 'NORMAL' ? 'State exact medical reason for bypassing schedule...' : 'Required for approval...' }}" required></textarea>
                         </div>
                     </div>
                 </div>
 
-                {{-- Right Column: Live Directory with Shopee-Style Buttons --}}
+                {{-- Right Column: Live Directory --}}
                 <div class="col-lg-7">
                     <div class="bento-card h-100 d-flex flex-column">
                         <h6 class="fw-bolder border-bottom pb-3 mb-3 text-uppercase small text-muted">Live Inventory Directory</h6>
                         
-                        {{-- Search & Pills --}}
                         <div class="mb-3">
                             <div class="input-group mb-3">
                                 <span class="input-group-text bg-white border-end-0 rounded-start-4 ps-3 text-muted"><i class="bi bi-search"></i></span>
@@ -154,7 +185,6 @@
                             </div>
                         </div>
 
-                        {{-- Upgraded Directory List with Add Buttons & Stock Status --}}
                         <div style="flex-grow: 1; overflow-y: auto; max-height: 450px;" class="pe-2" id="directoryContainer">
                             <ul class="list-unstyled mb-0" id="directoryList">
                                 @foreach($supplies as $item)
@@ -179,10 +209,7 @@
                                                 <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 border border-danger border-opacity-25">Out of Stock</span>
                                                 <button type="button" class="btn btn-sm btn-light text-muted fw-bold rounded-pill shadow-sm" disabled><i class="bi bi-x-circle me-1"></i> Add</button>
                                             @else
-                                                @if($item->quantity <= $item->reorder_level)
-                                                    <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill px-3 py-1 border border-warning border-opacity-25 fw-bold">Low Stock</span>
-                                                @endif
-                                                <button type="button" class="btn btn-sm btn-primary fw-bold rounded-pill shadow-sm px-3" onclick="addDirectlyToCart('{{ $item->id }}', '{{ addslashes($item->name) }}', {{ $item->quantity }})">
+                                                <button type="button" class="btn btn-sm {{ $portalMode !== 'NORMAL' ? 'btn-danger' : 'btn-primary' }} fw-bold rounded-pill shadow-sm px-3" onclick="addDirectlyToCart('{{ $item->id }}', '{{ addslashes($item->name) }}', {{ $item->quantity }})">
                                                     <i class="bi bi-plus-lg"></i> Add
                                                 </button>
                                             @endif
@@ -198,16 +225,16 @@
         </div>
 
         {{-- Floating Action Button --}}
-        <button class="btn btn-primary fab-cart d-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartOffcanvas">
+        <button class="btn {{ $portalMode !== 'NORMAL' ? 'btn-danger' : 'btn-primary' }} fab-cart d-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#cartOffcanvas" id="fabCartButton" style="{{ $portalMode === 'CLOSED' ? 'display: none !important;' : '' }}">
             <i class="bi bi-cart3 fs-4"></i> View Cart 
-            <span class="badge bg-white text-primary rounded-pill ms-1 fs-6" id="fabCartCount">0</span>
+            <span class="badge bg-white {{ $portalMode !== 'NORMAL' ? 'text-danger' : 'text-primary' }} rounded-pill ms-1 fs-6" id="fabCartCount">0</span>
         </button>
 
         {{-- Offcanvas Cart --}}
         <div class="offcanvas offcanvas-end rounded-start-4 border-0 shadow" tabindex="-1" id="cartOffcanvas" aria-labelledby="cartOffcanvasLabel" style="width: 400px;">
             <div class="offcanvas-header border-bottom p-4">
-                <h5 class="offcanvas-title fw-bolder d-flex align-items-center gap-2" id="cartOffcanvasLabel">
-                    <i class="bi bi-bag-check-fill text-primary"></i> Request Summary
+                <h5 class="offcanvas-title fw-bolder d-flex align-items-center gap-2 {{ $portalMode !== 'NORMAL' ? 'text-danger' : 'text-primary' }}" id="cartOffcanvasLabel">
+                    <i class="bi bi-bag-check-fill"></i> Request Summary
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
@@ -222,11 +249,35 @@
                 <div id="cartList" class="flex-grow-1 overflow-auto pe-2"></div>
 
                 <div class="mt-4 pt-3 border-top">
-                    <button type="submit" class="btn btn-primary btn-modern w-100 fs-5 shadow-sm"><i class="bi bi-send-fill me-2"></i> Submit Request</button>
+                    <button type="submit" class="btn {{ $portalMode !== 'NORMAL' ? 'btn-danger' : 'btn-primary' }} btn-modern w-100 fs-5 shadow-sm">
+                        <i class="bi bi-send-fill me-2"></i> {{ $portalMode !== 'NORMAL' ? 'Submit Emergency RIS' : 'Submit Request' }}
+                    </button>
                 </div>
             </div>
         </div>
     </form>
+
+    {{-- CUSTOM EMERGENCY CONFIRMATION MODAL --}}
+    <div class="modal fade" id="emergencyConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bento-card p-2 border-0 border border-danger border-2 bg-body">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="fw-bolder text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Emergency Override</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-danger bg-opacity-10 rounded-4 p-4 mt-3 border border-danger border-opacity-25">
+                    <p class="text-dark fw-bold mb-2">WARNING: This override is heavily audited by the ICT Section and QMO.</p>
+                    <p class="text-danger fw-bolder mb-0">Are you sure you have a life-safety critical emergency?</p>
+                </div>
+                <div class="modal-footer border-0 pt-3">
+                    <button type="button" class="btn btn-light btn-modern text-muted fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger btn-modern shadow-sm fw-bold" onclick="executeBreakGlass()">
+                        <i class="bi bi-shield-exclamation me-1"></i> Confirm Emergency
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- PETTY CASH MANUAL REQUEST MODAL --}}
     <div class="modal fade" id="pettyCashModal" tabindex="-1" aria-hidden="true">
@@ -382,11 +433,10 @@
             itemRow.style.setProperty('display', 'flex', 'important');
         }
 
-        // --- NEW: DIRECT "SHOPEE-STYLE" ADD BUTTON LOGIC ---
         function addDirectlyToCart(id, name, maxStock) {
             let existing = cart.find(i => i.id == id);
             let currentQty = existing ? existing.qty : 0;
-            let qtyToAdd = 1; // Default to adding 1 at a time for quick buttons
+            let qtyToAdd = 1; 
 
             if (currentQty + qtyToAdd > maxStock) {
                 showToast(`<i class="bi bi-exclamation-triangle-fill me-2"></i> Cannot request more than available stock (${maxStock}).`, 'danger');
@@ -401,14 +451,12 @@
             
             updateUI();
             
-            // Pop the offcanvas open automatically so they see it was added
             let cartOffcanvas = new bootstrap.Offcanvas(document.getElementById('cartOffcanvas'));
             cartOffcanvas.show();
             
             showToast(`<i class="bi bi-check-circle-fill me-2"></i> Added <b>1</b> x ${name} to cart.`, 'success');
         }
 
-        // Original Add Item Logic (from the manual dropdown)
         function addItem() {
             let sel = document.getElementById('supplySelect');
             let qty = document.getElementById('qtyInput').value;
@@ -492,7 +540,6 @@
             printFrame.onload = () => { printFrame.contentWindow.focus(); printFrame.contentWindow.print(); };
         }
 
-        // PETTY CASH MODAL LOGIC
         function openPettyCashModal() {
             let dept = document.getElementById('departmentSelect').value;
             let reqBy = document.getElementById('requestedByInput').value;
@@ -543,6 +590,26 @@
                     }
                 }
             }, 1000);
+        }
+
+        function triggerBreakGlass() {
+            // Opens our sleek custom modal instead of the ugly browser popup
+            let modal = new bootstrap.Modal(document.getElementById('emergencyConfirmModal'));
+            modal.show();
+        }
+
+        function executeBreakGlass() {
+            // Hide the modal
+            bootstrap.Modal.getInstance(document.getElementById('emergencyConfirmModal')).hide();
+            
+            // Unlock the portal UI
+            document.getElementById('closedBanner').style.display = 'none';
+            document.getElementById('mainPortalUI').style.display = 'flex';
+            document.getElementById('fabCartButton').style.setProperty('display', 'flex', 'important');
+            document.getElementById('isEmergencyFlag').value = '1';
+            
+            // Trigger the red toast notification
+            showToast("<i class='bi bi-shield-exclamation me-2'></i> Emergency Override Activated. Please state your justification.", "danger");
         }
     </script>
 </body>
