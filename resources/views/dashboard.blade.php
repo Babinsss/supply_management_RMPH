@@ -24,7 +24,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="bento-card bg-danger bg-opacity-10 border border-danger border-opacity-25 d-flex justify-content-between align-items-center h-100">
+            {{-- Made this card clickable to trigger the new modal --}}
+            <div class="bento-card bg-danger bg-opacity-10 border border-danger border-opacity-25 d-flex justify-content-between align-items-center h-100 shadow-sm transition-all" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#criticalStockModal">
                 <div>
                     <p class="text-danger fw-bold mb-1 text-uppercase small">Low Stock Alerts</p>
                     <h1 class="fw-bolder mb-0 display-4 text-danger">{{ $low_stock_count }}</h1>
@@ -155,6 +156,102 @@
         @endif
     @endforeach
 
+
+    {{-- CRITICAL STOCK FULL LIST MODAL --}}
+    <div class="modal fade" id="criticalStockModal" tabindex="-1" aria-labelledby="criticalStockModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content bento-card border-0 p-2 shadow-lg bg-body">
+                
+                <div class="modal-header border-0 pb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger" style="width: 38px; height: 38px;">
+                            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bolder mb-0 text-body-emphasis" id="criticalStockModalLabel">Critical & Out of Stock Items</h5>
+                            <p class="text-muted small mb-0">{{ $criticalSupplies->count() }} items require immediate replenishment</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body pt-2 bg-body-tertiary rounded-4 border border-secondary-subtle">
+                    <div class="table-responsive">
+                        <table class="table table-clean align-middle mb-0">
+                            <thead class="sticky-top bg-body-tertiary">
+                                <tr class="text-uppercase text-muted" style="font-size: 0.75rem;">
+                                    <th>Item Description</th>
+                                    <th>Category</th>
+                                    <th class="text-center">Current Qty</th>
+                                    <th class="text-center">Reorder Level</th>
+                                    <th class="text-end">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($criticalSupplies as $supply)
+                                    <tr class="border-bottom border-secondary-subtle">
+                                        <td>
+                                            <div class="fw-bold text-body-emphasis">{{ $supply->name }}</div>
+                                            @if($supply->supplier)
+                                                <div class="text-muted small" style="font-size: 0.75rem;">
+                                                    <i class="bi bi-building me-1"></i>{{ $supply->supplier }}
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1" style="font-size: 0.70rem;">
+                                                {{ $supply->category ?: 'Uncategorized' }}
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="fw-bolder fs-6 {{ $supply->quantity == 0 ? 'text-danger' : 'text-warning' }}">
+                                                {{ $supply->quantity }}
+                                            </span>
+                                            <span class="text-muted small">{{ $supply->unit ?? 'pcs' }}</span>
+                                        </td>
+                                        <td class="text-center text-muted fw-bold small">
+                                            {{ $supply->reorder_level }}
+                                        </td>
+                                        <td class="text-end">
+                                            @if($supply->quantity == 0)
+                                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-1">
+                                                    Out of Stock
+                                                </span>
+                                            @else
+                                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 rounded-pill px-3 py-1">
+                                                    Low Stock
+                                                </span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-5 text-muted">
+                                            <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2 opacity-75"></i>
+                                            All inventory stocks are healthy.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-0 pt-3 justify-content-between">
+                    <span class="text-muted small">Generated on {{ now()->timezone('Asia/Manila')->format('M d, Y h:i A') }}</span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Close</button>
+                        <a href="/inventory" class="btn btn-primary btn-modern shadow-sm">
+                            <i class="bi bi-arrow-right me-1"></i> Go to Inventory
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
     <x-slot name="scripts">
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -208,17 +305,13 @@
                 });
             }
 
-            // 6. THE SNITCH: AUTOMATED LOW-STOCK ALERTS
+            // 6. THE SNITCH: AUTOMATED LOW-STOCK ALERTS (Now Clickable)
             const Toast = Swal.mixin({
                 toast: true,
                 position: 'top-end',
                 showConfirmButton: false,
                 timer: 6000,
-                timerProgressBar: true,
-                didOpen: (toast) => {
-                    toast.addEventListener('mouseenter', Swal.stopTimer)
-                    toast.addEventListener('mouseleave', Swal.resumeTimer)
-                }
+                timerProgressBar: true
             });
 
             function sniffLowStock() {
@@ -229,8 +322,11 @@
                             // Format the item list
                             let itemList = data.items.slice(0, 3).map(i => `<div class="text-start small mb-1"><strong class="text-danger">${i.quantity} left</strong> - ${i.name}</div>`).join('');
                             
+                            // Add click hint text
                             if (data.count > 3) {
-                                itemList += `<div class="text-start small text-muted-soft mt-1 fst-italic">+ ${data.count - 3} more critical items...</div>`;
+                                itemList += `<div class="text-start small text-info mt-1 fw-bold text-decoration-underline"><i class="bi bi-hand-index-thumb me-1"></i>Click to view ${data.count} critical items...</div>`;
+                            } else {
+                                itemList += `<div class="text-start small text-info mt-1 fw-bold text-decoration-underline"><i class="bi bi-hand-index-thumb me-1"></i>Click to view details...</div>`;
                             }
 
                             // Match the toast background to the current theme
@@ -241,7 +337,18 @@
                                 title: 'Critical Stock Alert',
                                 html: itemList,
                                 background: isDark ? '#1e293b' : '#ffffff',
-                                color: isDark ? '#f8fafc' : '#0f172a'
+                                color: isDark ? '#f8fafc' : '#0f172a',
+                                didOpen: (toast) => {
+                                    toast.addEventListener('mouseenter', Swal.stopTimer);
+                                    toast.addEventListener('mouseleave', Swal.resumeTimer);
+                                    
+                                    // Make the toast trigger the Modal
+                                    toast.style.cursor = 'pointer';
+                                    toast.addEventListener('click', () => {
+                                        Swal.close();
+                                        new bootstrap.Modal(document.getElementById('criticalStockModal')).show();
+                                    });
+                                }
                             });
                         }
                     })

@@ -169,6 +169,14 @@
                     @empty
                         <tr><td colspan="5" class="text-center py-5 text-muted-soft fw-medium">No inventory items found.</td></tr>
                     @endforelse
+
+                    {{-- Dynamic Empty Search Row (Hidden by default) --}}
+                    <tr id="emptySearchRow" style="display: none;">
+                        <td colspan="5" class="text-center py-5 text-muted fw-medium">
+                            <i class="bi bi-search fs-2 d-block mb-3 opacity-25"></i>
+                            No items match your current filters or search.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -257,7 +265,7 @@
                 printDirectly(url);
             }
 
-            // --- FILTERING & PAGINATION LOGIC (Matches Admin) ---
+            // --- FILTERING & SMART PAGINATION LOGIC ---
             let currentPage = 1;
             const rowsPerPage = 10;
             let currentCategory = 'ALL';
@@ -285,6 +293,7 @@
                 let searchText = document.getElementById('searchInput').value.toLowerCase();
                 let currentSupplier = document.getElementById('supplierFilter').value;
                 let allRows = document.querySelectorAll('.inventory-row');
+                let emptyRow = document.getElementById('emptySearchRow');
                 let visibleRows = [];
 
                 allRows.forEach(row => {
@@ -301,6 +310,13 @@
                     }
                     row.style.display = 'none';
                 });
+
+                // Display Dynamic Empty State if nothing matches
+                if (visibleRows.length === 0 && allRows.length > 0) {
+                    emptyRow.style.display = '';
+                } else if (emptyRow) {
+                    emptyRow.style.display = 'none';
+                }
 
                 let totalPages = Math.ceil(visibleRows.length / rowsPerPage) || 1;
                 if (currentPage > totalPages) currentPage = totalPages;
@@ -328,16 +344,35 @@
                 let html = '';
 
                 if (totalPages > 1) {
+                    // Previous Button
                     html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                                <button class="page-link shadow-sm" onclick="changePage(${currentPage - 1})">Previous</button>
+                                <button type="button" class="page-link shadow-sm text-dark" onclick="changePage(${currentPage - 1})">Previous</button>
                              </li>`;
-                    for (let i = 1; i <= totalPages; i++) {
+                    
+                    // Smart Ellipses Logic
+                    let startPage = Math.max(1, currentPage - 2);
+                    let endPage = Math.min(totalPages, currentPage + 2);
+
+                    if (startPage > 1) {
+                        html += `<li class="page-item"><button type="button" class="page-link shadow-sm text-dark" onclick="changePage(1)">1</button></li>`;
+                        if (startPage > 2) html += `<li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">...</span></li>`;
+                    }
+
+                    // Numbered Buttons
+                    for (let i = startPage; i <= endPage; i++) {
                         html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
-                                    <button class="page-link shadow-sm" onclick="changePage(${i})">${i}</button>
+                                    <button type="button" class="page-link shadow-sm ${currentPage === i ? 'bg-primary text-white border-primary' : 'text-dark'}" onclick="changePage(${i})">${i}</button>
                                  </li>`;
                     }
+
+                    if (endPage < totalPages) {
+                        if (endPage < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">...</span></li>`;
+                        html += `<li class="page-item"><button type="button" class="page-link shadow-sm text-dark" onclick="changePage(${totalPages})">${totalPages}</button></li>`;
+                    }
+
+                    // Next Button
                     html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                                <button class="page-link shadow-sm" onclick="changePage(${currentPage + 1})">Next</button>
+                                <button type="button" class="page-link shadow-sm text-dark" onclick="changePage(${currentPage + 1})">Next</button>
                              </li>`;
                 }
                 container.innerHTML = html;

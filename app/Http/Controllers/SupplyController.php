@@ -21,21 +21,25 @@ class SupplyController extends Controller
         $supplies = Supply::all();
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
         
-        // --- NEW: Generate 7-Day Trend Data for the Sparkline Chart ---
+        // Fetch the full list of depleted/critical items for the new Modal
+        $criticalSupplies = Supply::whereRaw('quantity <= reorder_level')
+            ->orderBy('quantity', 'asc')
+            ->orderBy('name', 'asc')
+            ->get();
+        
+        // Generate 7-Day Trend Data for the Sparkline Chart
         $chartDates = [];
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
 
-            // Count how many unique batches (requests) came in on this specific day
             $chartData[] = DepartmentRequest::whereDate('created_at', $date)
                                             ->distinct('batch_id')
                                             ->count('batch_id');
         }
-        // --------------------------------------------------------------
 
-        // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
+        // SMART SORT: Pending requests Oldest->Newest at the top. 
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
@@ -77,8 +81,9 @@ class SupplyController extends Controller
             'requests' => $paginatedRequests, 
             'pending_count' => $pendingCount,
             'low_stock_count' => $lowStockCount,
-            'chartDates' => $chartDates, // Passed to View
-            'chartData' => $chartData    // Passed to View
+            'chartDates' => $chartDates,
+            'chartData' => $chartData,
+            'criticalSupplies' => $criticalSupplies // <-- Passed to view here
         ]);
     }
 
