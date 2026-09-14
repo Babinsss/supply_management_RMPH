@@ -42,7 +42,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
-    Route::post('/inventory/toggle-visibility/{id}', [SupplyController::class, 'toggleVisibility']);
+    Route::post('/inventory/toggle-visibility/{id}', [\App\Http\Controllers\SupplyController::class, 'toggleVisibility']);
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 

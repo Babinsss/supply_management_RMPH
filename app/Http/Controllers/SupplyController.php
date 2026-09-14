@@ -202,14 +202,20 @@ class SupplyController extends Controller
             return redirect()->back()->with('warning', 'This request has already been processed.');
         }
 
+        // --- 1. DEFINE VARIABLES (Fixes the undefined variable error) ---
+        $isEmergency = $batchReqs->first()->is_emergency;
         $batchTime = $batchReqs->first()->created_at;
         
-        $olderPendingExists = DepartmentRequest::where('status', 'Pending')
-            ->where('created_at', '<', $batchTime)
-            ->exists();
+        // --- 2. EMERGENCY BYPASS LOGIC ---
+        // The system will only enforce the queue if it is a NORMAL request
+        if (!$isEmergency) {
+            $olderPendingExists = DepartmentRequest::where('status', 'Pending')
+                ->where('created_at', '<', $batchTime)
+                ->exists();
 
-        if ($olderPendingExists) {
-            return redirect()->back()->with('danger', "Cannot approve! You must process the oldest pending hospital request first.");
+            if ($olderPendingExists) {
+                return redirect()->back()->with('danger', "Cannot approve! You must process the oldest pending hospital request first.");
+            }
         }
 
         foreach ($batchReqs as $req) {
@@ -280,7 +286,28 @@ class SupplyController extends Controller
         $departments = \App\Models\Department::where('is_active', true)->orderBy('group_name')->orderBy('name')->get();
         $categories = \App\Models\Category::where('is_active', true)->orderBy('name')->get();
         
-        return view('portal', compact('supplies', 'departments', 'categories'));
+        $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
+        $dayOfWeek = $now->dayOfWeekIso; // 1 = Mon, 7 = Sun
+        $currentHour = $now->hour;       // 0 to 23
+
+        // 1. Lock down Weekends (Saturday & Sunday)
+        if (in_array($dayOfWeek, [6, 7])) {
+            $portalMode = 'CLOSED_WEEKEND';
+        } 
+        // 2. Lock down outside 8:00 AM - 4:59 PM (Any Day)
+        elseif ($currentHour < 8 || $currentHour >= 17) {
+            $portalMode = 'CLOSED_OFF_HOURS';
+        } 
+        // 3. Normal Mode for Monday & Wednesday
+        elseif (in_array($dayOfWeek, [1, 3])) {
+            $portalMode = 'NORMAL';
+        } 
+        // 4. Emergency Mode for Tuesday, Thursday, and Friday
+        else {
+            $portalMode = 'EMERGENCY_ONLY';
+        }
+        
+        return view('portal', compact('supplies', 'departments', 'categories', 'portalMode'));
     }
 
     public function submitRequest(Request $request)
@@ -288,12 +315,36 @@ class SupplyController extends Controller
         $dept = $request->input('department_name');
         $person = $request->input('requested_by');
         $purpose = $request->input('purpose');
+        $isEmergency = $request->input('is_emergency') == '1';
         $cartJson = $request->input('cart_data', '[]');
 
         $cartData = json_decode($cartJson, true) ?? [];
 
         if (empty($cartData)) {
             return redirect()->route('portal')->with('danger', 'Please add items to your cart before submitting.');
+        }
+
+        // --- TIME & SCHEDULE SECURITY ---
+        $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
+        $dayOfWeek = $now->dayOfWeekIso;
+        $currentHour = $now->hour;
+        
+        // Block weekend submissions completely
+        if (in_array($dayOfWeek, [6, 7])) {
+            return redirect()->route('portal')->with('danger', 'System is closed. No requests can be processed during the weekend.');
+        }
+        // Block off-hour submissions completely
+        if ($currentHour < 8 || $currentHour >= 17) {
+            return redirect()->route('portal')->with('danger', 'System is closed. Standard requesting is only available between 8:00 AM and 5:00 PM.');
+        }
+        // Enforce Emergency Flag for Tue, Thu, Fri
+        if (in_array($dayOfWeek, [2, 4, 5]) && !$isEmergency) {
+            return redirect()->route('portal')->with('danger', 'Today is restricted to Emergency Requests only. Please ensure the emergency justification is provided.');
+        }
+
+        // --- AUTOMATICALLY TAG THE PURPOSE ---
+        if ($isEmergency) {
+            $purpose = '[EMERGENCY] ' . $purpose;
         }
 
         $batchId = (string) Str::uuid();
@@ -306,12 +357,17 @@ class SupplyController extends Controller
                 'supply_id' => (int)$item['id'],
                 'quantity' => (int)$item['qty'],
                 'purpose' => $purpose,
+                'is_emergency' => $isEmergency,
                 'status' => 'Pending'
             ]);
         }
 
+        $msg = $isEmergency 
+            ? 'EMERGENCY OVERRIDE LOGGED: Your urgent request has been instantly flagged for the Supply Section.' 
+            : 'Your standard request has been successfully submitted to the Supply Section.';
+
         return redirect()->route('portal')
-            ->with('success', 'Your request has been successfully submitted to Supply Section.')
+            ->with('success', $msg)
             ->with('batch_id', $batchId);
     }
 
@@ -541,16 +597,20 @@ class SupplyController extends Controller
 
     public function toggleVisibility($id)
     {
-        $item = Supply::findOrFail($id);
-        $item->is_visible = !$item->is_visible; 
-        $item->save();
+        $supply = Supply::findOrFail($id);
+        
+        // Toggle the boolean state (if 1 it becomes 0, if 0 it becomes 1)
+        $supply->is_visible = !$supply->is_visible;
+        $supply->save();
 
-        $status = $item->is_visible ? 'visible' : 'hidden';
-        \App\Models\ActivityLog::log('Inventory', "Toggled visibility for {$item->name} to {$status}");
+        // Determine what text to show in the success message
+        $status = $supply->is_visible ? 'visible' : 'hidden';
 
-        return redirect()->back()->with('success', "Visibility updated for {$item->name}!");
+        // Log the action (Optional, since you have an ActivityLog model)
+        \App\Models\ActivityLog::log('Inventory', "Toggled visibility for {$supply->name} to {$status}");
+
+        return redirect()->back()->with('success', "Item {$supply->name} is now {$status} in the portal.");
     }
-
     public function bincard($id)
     {
         $item = Supply::findOrFail($id);
