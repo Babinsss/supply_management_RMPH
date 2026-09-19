@@ -81,7 +81,7 @@
                     <h4 class="fw-bolder">SYSTEM CLOSED</h4>
                     
                     @if($portalMode === 'CLOSED_WEEKEND')
-                        <p class="mb-0 text-dark fw-medium">Standard requesting is closed Friday through Sunday. Normal operations resume Monday at 8:00 AM.</p>
+                        <p class="mb-0 text-dark fw-medium">Standard requesting is closed Saturday through Sunday. Normal operations resume Monday at 8:00 AM.</p>
                     @else
                         <p class="mb-0 text-dark fw-medium">Standard requesting is currently outside of operating hours (8:00 AM - 5:00 PM). Please wait until the next business day.</p>
                     @endif
