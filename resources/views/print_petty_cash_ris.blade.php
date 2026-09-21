@@ -54,18 +54,28 @@
             </tr>
         </thead>
         <tbody>
-            {{-- Loop through every item requested --}}
-            @foreach($data['item_name'] as $index => $itemName)
-                @php 
-                    $qty = $data['quantity'][$index];
-                @endphp
+            @php 
+                $itemCount = count($data['item_name']);
+                $maxRows = 10; // Matches your 10-item limit
+            @endphp
+
+            @for ($i = 0; $i < $maxRows; $i++)
                 <tr>
-                    <td style="font-weight: bold; font-size: 14px;">{{ $qty }}</td>
-                    <td style="text-align: left; padding-left: 15px; font-weight: bold;">{{ strtoupper($itemName) }}</td>
-                    <td></td> {{-- Blank for handwritten input --}}
-                    <td></td> {{-- Blank for handwritten input --}}
+                    @if(isset($data['item_name'][$i]))
+                        {{-- Render submitted item data --}}
+                        <td style="font-weight: bold; font-size: 14px; height: 25px;">{{ $data['quantity'][$i] }}</td>
+                        <td style="text-align: left; padding-left: 15px; font-weight: bold;">{{ strtoupper($data['item_name'][$i]) }}</td>
+                        <td></td>
+                        <td></td>
+                    @else
+                        {{-- Render empty rows to keep the table height consistent --}}
+                        <td style="height: 25px;"></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    @endif
                 </tr>
-            @endforeach
+            @endfor
 
             {{-- Grand Total Row --}}
             <tr>
@@ -74,7 +84,7 @@
             </tr>
 
             <tr>
-                <td colspan="4" style="text-align: left; padding: 15px; height: 60px; vertical-align: top;">
+                <td colspan="4" style="text-align: left; padding: 15px; height: 50px; vertical-align: top;">
                     <strong>Purpose / Remarks:</strong><br>
                     {{ $data['purpose'] }}
                 </td>

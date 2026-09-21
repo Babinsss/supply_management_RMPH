@@ -681,9 +681,9 @@ class SupplyController extends Controller
         $data = $request->validate([
             'department_name' => 'required|string',
             'requested_by' => 'required|string',
-            'item_name' => 'required|array|min:1',
+            'item_name' => 'required|array|min:1|max:10', // <--- Added max:10 limit
             'item_name.*' => 'required|string',
-            'quantity' => 'required|array|min:1',
+            'quantity' => 'required|array|min:1|max:10',  // <--- Added max:10 limit
             'quantity.*' => 'required|integer|min:1',
             'purpose' => 'required|string',
         ]);
