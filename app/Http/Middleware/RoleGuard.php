@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class RoleGuard
 {
-    public function handle(Request $request, Closure $next, $role)
+    public function handle(Request $request, Closure $next, ...$roles)
     {
         // 1. Check if the user is logged in
         if (!auth()->check()) {
@@ -19,8 +19,8 @@ class RoleGuard
             return $next($request);
         }
 
-        // 3. Normal Role Check: Does their role match the required route role?
-        if (auth()->user()->role !== $role) {
+        // 3. Normal Role Check: Does their role match ANY of the required route roles?
+        if (!in_array(auth()->user()->role, $roles)) {
             abort(403, 'YOU DO NOT HAVE PERMISSION TO ACCESS THIS PAGE.');
         }
 

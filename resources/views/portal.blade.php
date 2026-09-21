@@ -288,7 +288,7 @@
                 <input type="hidden" name="requested_by" id="pcReqBy">
 
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="fw-bolder text-danger"><i class="bi bi-wallet2 me-2"></i> Petty Cash Request</h5>
+                    <h5 class="fw-bolder text-danger"><i class="bi bi-wallet2 me-2"></i> Purchase Requisition Form (PRF)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 

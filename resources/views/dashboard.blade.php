@@ -47,7 +47,7 @@
     <div class="bento-card mb-4 p-5">
         <div class="position-relative ms-2 ms-md-4 border-start border-3 border-primary border-opacity-25 pb-4">
             
-            @forelse($requests as $batch)
+            @forelse($requests as$batch)
                 <div class="timeline-node position-relative mb-5 ps-4 ps-md-5">
                     
                     {{-- THE TIMELINE DOT --}}
@@ -64,9 +64,9 @@
                             <p class="text-muted small mb-3"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
                             
                             <div class="d-flex flex-wrap gap-2 mb-3">
-                                @foreach(collect($batch['items'])->take(3) as $req)
+                                @foreach(collect($batch['items'])->take(3) as$req)
                                     <span class="badge bg-body text-body border border-secondary-subtle px-3 py-2 shadow-sm">
-                                        <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                        <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{$req->supply->name }}
                                     </span>
                                 @endforeach
                                 @if(count($batch['items']) > 3)
@@ -98,7 +98,7 @@
     @endif
 
     {{-- Review Modals --}}
-    @foreach($requests as $batch)
+    @foreach($requests as$batch)
         @if($batch['status'] == 'Pending')
             <div class="modal fade text-start" id="approveModal-{{ $batch['batch_id'] }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
@@ -113,9 +113,9 @@
                                 @php
                                     $hasOutOfStock = false;
                                     $totalFulfillable = 0;
-                                    foreach($batch['items'] as $req) {
-                                        if($req->supply->quantity <= 0) $hasOutOfStock = true;
-                                        $totalFulfillable += min($req->quantity, $req->supply->quantity);
+                                    foreach($batch['items'] as$req) {
+                                        if($req->supply->quantity <= 0)$hasOutOfStock = true;
+                                        $totalFulfillable += min($req->quantity,$req->supply->quantity);
                                     }
                                 @endphp
 
@@ -127,7 +127,7 @@
                                     <p class="text-muted-soft small mb-4">Adjust quantities before issuing. You cannot exceed stock.</p>
                                 @endif
 
-                                @foreach($batch['items'] as $req)
+                                @foreach($batch['items'] as$req)
                                 <div class="d-flex justify-content-between align-items-center mb-3 bg-body-tertiary p-3 rounded-4 border border-secondary-subtle shadow-sm {{ $req->supply->quantity <= 0 ? 'opacity-75' : '' }}">
                                     <div class="pe-2">
                                         <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
@@ -188,7 +188,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($criticalSupplies as $supply)
+                                @forelse($criticalSupplies as$supply)
                                     <tr class="border-bottom border-secondary-subtle">
                                         <td>
                                             <div class="fw-bold text-body-emphasis">{{ $supply->name }}</div>
@@ -240,6 +240,12 @@
                 <div class="modal-footer border-0 pt-3 justify-content-between">
                     <span class="text-muted small">Generated on {{ now()->timezone('Asia/Manila')->format('M d, Y h:i A') }}</span>
                     <div class="d-flex gap-2">
+                        
+                        {{-- NEW GENERATE PR BUTTON --}}
+                        <a href="/generate-critical-pr" target="_blank" class="btn btn-success btn-modern shadow-sm fw-bold">
+                            <i class="bi bi-printer-fill me-1"></i> Print PR (Office Supplies)
+                        </a>
+
                         <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Close</button>
                         <a href="/inventory" class="btn btn-primary btn-modern shadow-sm">
                             <i class="bi bi-arrow-right me-1"></i> Go to Inventory
@@ -278,7 +284,7 @@
             });
 
             // 3. SERVER ALERTS
-            @if(session('danger')) Swal.fire({ icon: 'error', title: 'Queue Violation!', text: "{!! session('danger') !!}", confirmButtonColor: '#dc3545', backdrop: `rgba(220, 53, 69, 0.1)` }); @endif
+            @if(session('danger')) Swal.fire({ icon: 'error', title: 'Action Denied!', text: "{!! session('danger') !!}", confirmButtonColor: '#dc3545', backdrop: `rgba(220, 53, 69, 0.1)` }); @endif
             @if(session('success')) Swal.fire({ icon: 'success', title: 'Success!', text: "{!! session('success') !!}", confirmButtonColor: '#198754', timer: 2000, showConfirmButton: false }); @endif
 
             // 4. QUEUE LIVE UPDATE
@@ -319,17 +325,14 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.count > 0) {
-                            // Format the item list
                             let itemList = data.items.slice(0, 3).map(i => `<div class="text-start small mb-1"><strong class="text-danger">${i.quantity} left</strong> - ${i.name}</div>`).join('');
                             
-                            // Add click hint text
                             if (data.count > 3) {
                                 itemList += `<div class="text-start small text-info mt-1 fw-bold text-decoration-underline"><i class="bi bi-hand-index-thumb me-1"></i>Click to view ${data.count} critical items...</div>`;
                             } else {
                                 itemList += `<div class="text-start small text-info mt-1 fw-bold text-decoration-underline"><i class="bi bi-hand-index-thumb me-1"></i>Click to view details...</div>`;
                             }
 
-                            // Match the toast background to the current theme
                             const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
 
                             Toast.fire({
@@ -342,7 +345,6 @@
                                     toast.addEventListener('mouseenter', Swal.stopTimer);
                                     toast.addEventListener('mouseleave', Swal.resumeTimer);
                                     
-                                    // Make the toast trigger the Modal
                                     toast.style.cursor = 'pointer';
                                     toast.addEventListener('click', () => {
                                         Swal.close();
@@ -355,7 +357,6 @@
                     .catch(error => console.error('Snitch failed to run:', error));
             }
 
-            // Fire it up 2 seconds after load, then every 5 minutes
             setTimeout(sniffLowStock, 2000);
             setInterval(sniffLowStock, 300000);
             

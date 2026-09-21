@@ -25,7 +25,6 @@
     <div class="bento-card h-100 d-flex flex-column mb-5 bg-body">
         <div class="table-responsive flex-grow-1 pe-2" style="max-height: 600px; overflow-y: auto;">
             <table class="table table-clean align-middle mb-0">
-                {{-- DARK MODE FIX: Replaced bg-white with bg-body --}}
                 <thead class="sticky-top bg-body" style="z-index: 1;">
                     <tr>
                         <th class="text-uppercase small text-muted">User Profile</th>
@@ -52,12 +51,13 @@
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-shield-lock-fill me-1"></i> Superadmin</span>
                                 @elseif($user->role === 'admin')
                                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-box-seam me-1"></i> Supply Admin</span>
-                                @else
+                                @elseif($user->role === 'approver')
                                     <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-clipboard-check me-1"></i> QMO Approver</span>
+                                @elseif($user->role === 'coh')
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-hospital me-1"></i> Chief of Hospital</span>
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
-                                {{-- DARK MODE FIX: Action buttons updated --}}
                                 <button class="btn btn-sm btn-outline-secondary btn-modern text-primary shadow-sm me-1" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $user->id }}">
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
@@ -111,6 +111,7 @@
                                 <select class="form-select input-modern" name="role" required>
                                     <option value="admin" {{ $user->role == 'admin' ? 'selected' : '' }}>Supply Admin</option>
                                     <option value="approver" {{ $user->role == 'approver' ? 'selected' : '' }}>QMO Approver</option>
+                                    <option value="coh" {{ $user->role == 'coh' ? 'selected' : '' }}>Chief of Hospital (View Only)</option>
                                     <option value="superadmin" {{ $user->role == 'superadmin' ? 'selected' : '' }}>Superadmin</option>
                                 </select>
                             </div>
@@ -155,6 +156,7 @@
                                 <option value="" disabled selected>Select a role...</option>
                                 <option value="admin">Supply Admin (Process Requests, Edit Inventory)</option>
                                 <option value="approver">QMO Approver (View Only)</option>
+                                <option value="coh">Chief of Hospital (View Only)</option>
                                 <option value="superadmin">Superadmin (Full System Control)</option>
                             </select>
                         </div>

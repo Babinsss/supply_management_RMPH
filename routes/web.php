@@ -13,10 +13,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
     
-    // NEW: Item Usage / Top Requestors Report (Shared Access)
+    // Item Usage / Top Requestors Report (Shared Access)
     Route::get('/print-item-usage', [SupplyController::class, 'printItemUsage']);
     
-    // NEW: Live Inventory Sync Route
+    // Live Inventory Sync Route
     Route::get('/api/inventory/live', [SupplyController::class, 'liveInventory']); 
     
     // --- PETTY CASH ADMIN LEDGER ROUTES ---
@@ -46,7 +46,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
 
-    // New Print Routes
+    // Automated PR Generation
+    Route::get('/generate-critical-pr', [SupplyController::class, 'generateCriticalPR']);
+
+    // Print Routes
     Route::get('/bincard/{id}', [SupplyController::class, 'bincard']);
     Route::get('/rapc/{id}', [SupplyController::class, 'rapc']);
 
@@ -56,10 +59,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| QMO APPROVER ROUTES
+| QMO & CHIEF OF HOSPITAL ROUTES (View Only)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'role:approver'])->group(function () {
+Route::middleware(['auth', 'role:approver,coh'])->group(function () {
     Route::get('/approver/dashboard', [SupplyController::class, 'approverDashboard']);
     Route::get('/approver/inventory', [SupplyController::class, 'approverInventory']);
 });
@@ -94,11 +97,9 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
 Route::get('/portal', [SupplyController::class, 'departmentPortal'])->name('portal');
 Route::post('/submit-request', [SupplyController::class, 'submitRequest']);
 Route::get('/print-bulk/{batch_id}', [SupplyController::class, 'printBulk']);
-
-// Petty Cash Manual Request Print Route
 Route::post('/portal/petty-cash/print', [SupplyController::class, 'printPettyCashRequest']);
 
-// FIX: Completely disables the /register route
+// Disables the /register route
 Auth::routes(['register' => false]); 
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

@@ -9,6 +9,12 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
+// Make sure these are at the top for the Excel exporter!
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+
 class SupplyController extends Controller
 {
     public function index()
@@ -21,25 +27,26 @@ class SupplyController extends Controller
         $supplies = Supply::all();
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
         
-        // Fetch the full list of depleted/critical items for the new Modal
+        // --- Fetch the full list of depleted/critical items for the modal
         $criticalSupplies = Supply::whereRaw('quantity <= reorder_level')
             ->orderBy('quantity', 'asc')
             ->orderBy('name', 'asc')
             ->get();
         
-        // Generate 7-Day Trend Data for the Sparkline Chart
+        // --- Generate 7-Day Trend Data for the Sparkline Chart ---
         $chartDates = [];
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
 
+            // Count how many unique batches (requests) came in on this specific day
             $chartData[] = DepartmentRequest::whereDate('created_at', $date)
                                             ->distinct('batch_id')
                                             ->count('batch_id');
         }
 
-        // SMART SORT: Pending requests Oldest->Newest at the top. 
+        // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
@@ -83,7 +90,7 @@ class SupplyController extends Controller
             'low_stock_count' => $lowStockCount,
             'chartDates' => $chartDates,
             'chartData' => $chartData,
-            'criticalSupplies' => $criticalSupplies // <-- Passed to view here
+            'criticalSupplies' => $criticalSupplies // Passed to View
         ]);
     }
 
@@ -141,15 +148,12 @@ class SupplyController extends Controller
             'supplier' => 'nullable|string|max:255',
             'date_delivered' => 'nullable|date',
             'unit_price' => 'nullable|numeric|min:0',
-            'unit' => 'nullable|string|max:50', // <--- ADD THIS LINE
+            'unit' => 'nullable|string|max:50',
         ]);
 
         $item = Supply::findOrFail($id);
-        
         $item->fill($validated);
-        
         $changes = $item->getDirty();
-        
         $item->save();
 
         if (!empty($changes)) {
@@ -158,12 +162,9 @@ class SupplyController extends Controller
                 if ($field === 'updated_at') continue; 
                 
                 $oldValue = $item->getOriginal($field);
-                
                 $oldValueStr = $oldValue === null || $oldValue === '' ? 'Empty' : $oldValue;
                 $newValueStr = $newValue === null || $newValue === '' ? 'Empty' : $newValue;
-                
                 $cleanField = ucwords(str_replace('_', ' ', $field));
-                
                 $changeDetails[] = "{$cleanField} ('{$oldValueStr}' ➔ '{$newValueStr}')";
             }
             
@@ -207,12 +208,10 @@ class SupplyController extends Controller
             return redirect()->back()->with('warning', 'This request has already been processed.');
         }
 
-        // --- 1. DEFINE VARIABLES (Fixes the undefined variable error) ---
         $isEmergency = $batchReqs->first()->is_emergency;
         $batchTime = $batchReqs->first()->created_at;
         
-        // --- 2. EMERGENCY BYPASS LOGIC ---
-        // The system will only enforce the queue if it is a NORMAL request
+        // --- EMERGENCY BYPASS LOGIC ---
         if (!$isEmergency) {
             $olderPendingExists = DepartmentRequest::where('status', 'Pending')
                 ->where('created_at', '<', $batchTime)
@@ -230,8 +229,7 @@ class SupplyController extends Controller
             }
         }
 
-        // --- FIX: Prevent Duplicate Line Overdraw ---
-        // Groups identical items together to check the true total requested amount
+        // --- Prevent Duplicate Line Overdraw ---
         $supplySums = [];
         foreach ($batchReqs as $req) {
             if (!isset($supplySums[$req->supply_id])) {
@@ -246,10 +244,8 @@ class SupplyController extends Controller
                 return redirect()->back()->with('danger', "Cannot approve! Total requested for {$supply->name} ({$totalRequested}) exceeds available stock ({$supply->quantity}).");
             }
         }
-        // --------------------------------------------
-
-        // --- FIX: Database Transaction Safety Net ---
-        // Guarantees all items process successfully, or none of them do.
+        
+        // --- Database Transaction Safety Net ---
         \Illuminate\Support\Facades\DB::transaction(function () use ($batchReqs) {
             foreach ($batchReqs as $req) {
                 $req->supply->quantity -= $req->quantity;
@@ -260,7 +256,6 @@ class SupplyController extends Controller
                 $req->save();
             }
         });
-        // --------------------------------------------
 
         $departmentName = $batchReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
@@ -295,20 +290,13 @@ class SupplyController extends Controller
         $dayOfWeek = $now->dayOfWeekIso; // 1 = Mon, 7 = Sun
         $currentHour = $now->hour;       // 0 to 23
 
-        // 1. Lock down Weekends (Saturday & Sunday)
         if (in_array($dayOfWeek, [6, 7])) {
             $portalMode = 'CLOSED_WEEKEND';
-        } 
-        // 2. Lock down outside 8:00 AM - 4:59 PM (Any Day)
-        elseif ($currentHour < 8 || $currentHour >= 17) {
+        } elseif ($currentHour < 8 || $currentHour >= 17) {
             $portalMode = 'CLOSED_OFF_HOURS';
-        } 
-        // 3. Normal Mode for Monday & Wednesday
-        elseif (in_array($dayOfWeek, [1, 3])) {
+        } elseif (in_array($dayOfWeek, [1, 3])) {
             $portalMode = 'NORMAL';
-        } 
-        // 4. Emergency Mode for Tuesday, Thursday, and Friday
-        else {
+        } else {
             $portalMode = 'EMERGENCY_ONLY';
         }
         
@@ -334,20 +322,16 @@ class SupplyController extends Controller
         $dayOfWeek = $now->dayOfWeekIso;
         $currentHour = $now->hour;
         
-        // Block weekend submissions completely
         if (in_array($dayOfWeek, [6, 7])) {
             return redirect()->route('portal')->with('danger', 'System is closed. No requests can be processed during the weekend.');
         }
-        // Block off-hour submissions completely
         if ($currentHour < 8 || $currentHour >= 17) {
             return redirect()->route('portal')->with('danger', 'System is closed. Standard requesting is only available between 8:00 AM and 5:00 PM.');
         }
-        // Enforce Emergency Flag for Tue, Thu, Fri
         if (in_array($dayOfWeek, [2, 4, 5]) && !$isEmergency) {
             return redirect()->route('portal')->with('danger', 'Today is restricted to Emergency Requests only. Please ensure the emergency justification is provided.');
         }
 
-        // --- AUTOMATICALLY TAG THE PURPOSE ---
         if ($isEmergency) {
             $purpose = '[EMERGENCY] ' . $purpose;
         }
@@ -501,7 +485,6 @@ class SupplyController extends Controller
     {
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
 
-        // Apply the same Smart Sort to the Approver view
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
@@ -559,7 +542,6 @@ class SupplyController extends Controller
         $cardsData = [];
 
         foreach ($matchingSupplies as $supply) {
-            // FIX: Using created_at and id strictly to match chronological request order
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
@@ -604,14 +586,11 @@ class SupplyController extends Controller
     {
         $supply = Supply::findOrFail($id);
         
-        // Toggle the boolean state (if 1 it becomes 0, if 0 it becomes 1)
         $supply->is_visible = !$supply->is_visible;
         $supply->save();
 
-        // Determine what text to show in the success message
         $status = $supply->is_visible ? 'visible' : 'hidden';
 
-        // Log the action (Optional, since you have an ActivityLog model)
         \App\Models\ActivityLog::log('Inventory', "Toggled visibility for {$supply->name} to {$status}");
 
         return redirect()->back()->with('success', "Item {$supply->name} is now {$status} in the portal.");
@@ -791,7 +770,6 @@ class SupplyController extends Controller
 
     public function lowStockApi()
     {
-        // Scan the database for items at or below their reorder threshold
         $criticalItems = Supply::whereRaw('quantity <= reorder_level')
             ->select('name', 'quantity', 'reorder_level')
             ->orderBy('quantity', 'asc')
@@ -801,5 +779,26 @@ class SupplyController extends Controller
             'count' => $criticalItems->count(),
             'items' => $criticalItems
         ]);
+    }
+
+    // ==========================================
+    // EXCEL PR GENERATOR
+    // ==========================================
+    public function generateCriticalPR()
+    {
+        // 1. Get ONLY "Office Supplies" that are at or below reorder level
+        $criticalItems = \App\Models\Supply::whereRaw('quantity <= reorder_level')
+            ->where('category', 'Office Supplies')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        if ($criticalItems->isEmpty()) {
+            return redirect()->back()->with('success', 'All Office Supplies stocks are healthy. No PR needed.');
+        }
+
+        \App\Models\ActivityLog::log('Inventory', "Generated printable Purchase Request for Office Supplies.");
+
+        // 2. Return the printable Blade view
+        return view('print_critical_pr', compact('criticalItems'));
     }
 }
