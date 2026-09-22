@@ -376,10 +376,21 @@
                                             @endif
                                         </strong>
                                     </td>
-                                    <td style="padding: 4px; text-transform: uppercase;">{{ $item->supply->description ?? '' }}</td>
+                                    
+                                    {{-- UNIT COLUMN (Now correctly pulls the 'unit' like pcs/box instead of description) --}}
+                                    <td style="padding: 4px; text-transform: uppercase; text-align: center;">
+                                        {{ $item->supply->unit ?? '' }}
+                                    </td>
+                                    
                                     <td style="font-weight: bold; font-size: 11px; padding: 4px;">{{ $item->quantity }}</td>
                                     <td style="padding: 4px;"></td>
-                                    <td style="padding: 4px;"></td>
+                                    
+                                    {{-- REMARKS COLUMN (Conditional) --}}
+                                    <td style="padding: 4px; font-size: 8px; font-weight: bold; text-align: center;">
+                                        @if(isset($item->supply->category) && strtoupper(trim($item->supply->category)) === 'FOR PURCHASE')
+                                            PURCHASE VIA PETTY CASH
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
 
