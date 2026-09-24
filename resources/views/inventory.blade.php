@@ -29,10 +29,17 @@
                 <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
 
+            @if(auth()->user()->role === 'superadmin')
+            {{-- 5. Archived Items (Superadmin Only) --}}
+            <button type="button" class="btn btn-sm btn-outline-warning text-body-emphasis btn-modern fw-bold shadow-sm border-warning" data-bs-toggle="modal" data-bs-target="#archivedItemsModal">
+                <i class="bi bi-archive me-1"></i> Archived
+            </button>
+            @endif
+
             {{-- Separator --}}
             <div class="vr mx-1 d-none d-md-block text-secondary opacity-25"></div>
 
-            {{-- 5. Add Item (Main Action) --}}
+            {{-- 6. Add Item (Main Action) --}}
             <button type="button" class="btn btn-sm btn-primary btn-modern shadow-sm fw-bold px-3" data-bs-toggle="modal" data-bs-target="#addItemModal">
                 <i class="bi bi-plus-lg me-1"></i> Add Supply
             </button>
@@ -264,8 +271,8 @@
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
-                                    {{-- 7. Delete --}}
-                                    <a href="/delete/{{ $item->id }}" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-danger" onclick="return confirm('Are you sure you want to permanently delete this item?')" title="Delete Item">
+                                    {{-- 7. Delete (Updated to Archive) --}}
+                                    <a href="/delete/{{ $item->id }}" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-danger" onclick="return confirm('Move this item to the archive? It can be restored later.')" title="Archive Item">
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 </div>
@@ -376,6 +383,73 @@
             </div>
         </div>
     </div>
+
+    @if(auth()->user()->role === 'superadmin')
+    {{-- ARCHIVED ITEMS MODAL (Superadmin Only) --}}
+    <div class="modal fade" id="archivedItemsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content bento-card p-2 border-0 bg-body">
+                <div class="modal-header border-0 pb-2">
+                    <h5 class="fw-bolder text-body-emphasis"><i class="bi bi-archive text-warning me-2"></i>Archived Supplies</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-body-tertiary rounded-4 p-0 mt-2 border border-secondary-subtle overflow-hidden">
+                    
+                    @php
+                        // Automatically fetches soft-deleted items without needing a controller update
+                        $archivedItems = \App\Models\Supply::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
+                    @endphp
+                    
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table class="table table-clean align-middle mb-0">
+                            <thead class="sticky-top bg-body-tertiary border-bottom border-secondary-subtle">
+                                <tr>
+                                    <th class="text-muted small text-uppercase ps-4">Item Details</th>
+                                    <th class="text-muted small text-uppercase">Deleted On</th>
+                                    <th class="text-muted small text-uppercase text-end pe-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($archivedItems as $archive)
+                                    <tr class="border-bottom border-secondary-subtle">
+                                        <td class="ps-4">
+                                            <div class="fw-bold text-body-emphasis">{{ $archive->name }}</div>
+                                            <div class="text-muted small">
+                                                <i class="bi bi-tag-fill me-1"></i>{{ $archive->category ?: 'Uncategorized' }}
+                                            </div>
+                                        </td>
+                                        <td class="text-muted small fw-medium">
+                                            {{ \Carbon\Carbon::parse($archive->deleted_at)->format('M d, Y h:i A') }}
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            {{-- Restore Form targeting the superadmin route --}}
+                                            <form action="/superadmin/supply/restore/{{ $archive->id }}" method="POST" class="m-0">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success btn-modern shadow-sm fw-bold">
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center py-5 text-muted">
+                                            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+                                            Archive is currently empty.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-3">
+                    <button type="button" class="btn btn-outline-secondary btn-modern text-muted fw-bold" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     {{-- ADD NEW ITEM MODAL --}}
     <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">

@@ -87,6 +87,9 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
     Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
     Route::get('/ris-archive', [App\Http\Controllers\SuperAdminController::class, 'risArchive'])->name('superadmin.ris_archive');
     Route::post('/inventory/adjust/{id}', [App\Http\Controllers\SupplyController::class, 'adjustStock']);
+    
+    // RESTORE ROUTE SECURED HERE
+    Route::post('/supply/restore/{id}', [App\Http\Controllers\SupplyController::class, 'restoreItem']);
 });
 
 /*

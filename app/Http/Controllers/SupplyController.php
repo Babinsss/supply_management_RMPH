@@ -192,6 +192,19 @@ class SupplyController extends Controller
         return redirect()->route('dashboard')->with('success', 'Item successfully deleted.');
     }
 
+    // ADD THIS ENTIRE METHOD:
+    public function restoreItem($id)
+    {
+        $item = Supply::withTrashed()->findOrFail($id);
+        $itemName = $item->name;
+        
+        $item->restore();
+
+        \App\Models\ActivityLog::log('Inventory', "Restored soft-deleted item: {$itemName}");
+
+        return redirect()->back()->with('success', "Item {$itemName} has been successfully restored.");
+    }
+
     public function processBatch(Request $request, $batch_id, $action)
     {
     }
