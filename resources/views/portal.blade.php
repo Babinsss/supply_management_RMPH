@@ -325,7 +325,7 @@
                     <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
                     <!-- UPDATED: Removed onclick="closePettyCashModal()" -->
                     <button type="submit" class="btn btn-danger btn-modern shadow-sm">
-                        <i class="bi bi-printer-fill me-1"></i> Generate RIS
+                        <i class="bi bi-printer-fill me-1"></i> Generate PRF
                     </button>
                 </div>
             </form>
