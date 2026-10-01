@@ -541,8 +541,12 @@ class SupplyController extends Controller
     {
         $clickedItem = Supply::findOrFail($id);
         $matchingSupplies = Supply::where('name', $clickedItem->name)->get();
+        
+        // ADDED: Year filter support for the archives
         $month_filter = $request->input('month', date('m'));
-        $current_month_label = date('F Y', mktime(0, 0, 0, $month_filter, 1, date('Y')));
+        $year_filter = $request->input('year', date('Y')); 
+        
+        $current_month_label = date('F Y', mktime(0, 0, 0, $month_filter, 1, $year_filter));
         
         $available_months = [];
         for ($i = 1; $i <= 12; $i++) {
@@ -559,7 +563,7 @@ class SupplyController extends Controller
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
                 ->whereMonth('created_at', $month_filter)
-                ->whereYear('created_at', date('Y'))
+                ->whereYear('created_at', $year_filter) // UPDATED
                 ->orderBy('created_at', 'asc')
                 ->orderBy('id', 'asc') 
                 ->get();
@@ -567,7 +571,7 @@ class SupplyController extends Controller
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
-                ->where('created_at', '>=', date('Y') . '-' . $month_filter . '-01 00:00:00')
+                ->where('created_at', '>=', $year_filter . '-' . $month_filter . '-01 00:00:00') // UPDATED
                 ->sum('quantity');
 
             $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;

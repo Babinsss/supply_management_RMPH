@@ -67,6 +67,9 @@
 
     <div class="print-toolbar no-print">
         <form method="GET" action="/stockcard/{{ $item->id }}" class="d-flex align-items-center mb-0 m-0">
+            <!-- Ensure it stays on the selected year from the archive -->
+            <input type="hidden" name="year" value="{{ $year_filter ?? date('Y') }}">
+            
             <label class="text-white me-2 fw-bold" style="font-size: 12px;">VIEW MONTH:</label>
             <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()" style="font-size: 12px; font-weight: bold; border-radius: 4px;">
                 @foreach ($available_months as $m)
@@ -79,8 +82,8 @@
         
         <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
         
-        {{-- Excel Export Button (Exports the currently clicked ID) --}}
-        <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}" class="btn-action" style="background-color: #107c41; color: white;">
+        {{-- Excel Export Button (Exports the currently clicked ID & Year) --}}
+        <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}&year={{ $year_filter ?? date('Y') }}" class="btn-action" style="background-color: #107c41; color: white;">
             <i class="bi bi-file-earmark-excel"></i> Excel
         </a>
         
@@ -98,7 +101,7 @@
             </div>
             <div class="form-title">
                 STOCK CARD<br>
-                <span style="font-size: 10px; font-weight: normal; letter-spacing: 0;">FOR THE MONTH OF <strong>{{ $current_month_label }}</strong></span>
+                <span style="font-size: 10px; font-weight: normal; letter-spacing: 0;">FOR THE MONTH OF <strong>{{ strtoupper($current_month_label) }}</strong></span>
             </div>
             <div style="width: 100px;"></div> 
         </div>

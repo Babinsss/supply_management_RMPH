@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SupplyController;
+use App\Http\Controllers\ArchiveController;
 use Illuminate\Support\Facades\Auth;
 
 /*
@@ -23,6 +24,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'index']);
     Route::post('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'store']);
     Route::get('/petty-cash/print/{id}', [App\Http\Controllers\PettyCashController::class, 'printReceipt']);
+});
+
+// --- NEW: SHARED STOCKCARD ARCHIVES ---
+Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
+    Route::get('/stockcard-archives', [ArchiveController::class, 'index'])->name('stockcard.archives');
 });
 
 /*
