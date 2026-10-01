@@ -84,12 +84,14 @@
                             <span class="fw-bold text-dark">{{ $txn->description }}</span>
                             @if($txn->supply_id)
                                 <br><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-0 mt-1" style="font-size: 0.65rem;">
-                                    <i class="bi bi-box-seam me-1"></i> Added to Inventory: {{ $txn->supply->name }}
+                                    <!-- FIXED: Added null-safe operator ?-> and a fallback for deleted items -->
+                                    <i class="bi bi-box-seam me-1"></i> Added to Inventory: {{ $txn->supply?->name ?? 'Deleted/Archived Item' }}
                                 </span>
                             @endif
                         </td>
                         <td class="text-muted">{{ $txn->receipt_reference ?: '-' }}</td>
-                        <td><span class="text-muted small fw-bold"><i class="bi bi-person-circle me-1"></i>{{ $txn->processor->name ?? 'System' }}</span></td>
+                        <!-- FIXED: Added null-safe operator ?-> for the processor as well, just in case a user gets deleted -->
+                        <td><span class="text-muted small fw-bold"><i class="bi bi-person-circle me-1"></i>{{ $txn->processor?->name ?? 'System' }}</span></td>
                         <td class="fw-bolder text-danger">
                             -₱{{ number_format($txn->amount, 2) }}
                         </td>

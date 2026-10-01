@@ -279,8 +279,8 @@
         </div>
     </div>
 
-    {{-- PETTY CASH MANUAL REQUEST MODAL --}}
-    <div class="modal fade" id="pettyCashModal" tabindex="-1" aria-hidden="true">
+    {{-- PETTY CASH MANUAL REQUEST MODAL (UPDATED WITH STATIC BACKDROP) --}}
+    <div class="modal fade" id="pettyCashModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <form action="/portal/petty-cash/print" method="POST" target="hiddenPettyCashFrame" id="pettyCashForm" class="modal-content bento-card p-2 border-0">
                 @csrf
@@ -323,7 +323,8 @@
                 </div>
                 <div class="modal-footer border-0">
                     <button type="button" class="btn btn-light btn-modern text-muted" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger btn-modern shadow-sm" onclick="closePettyCashModal()">
+                    <!-- UPDATED: Removed onclick="closePettyCashModal()" -->
+                    <button type="submit" class="btn btn-danger btn-modern shadow-sm">
                         <i class="bi bi-printer-fill me-1"></i> Generate RIS
                     </button>
                 </div>
@@ -576,21 +577,30 @@
             container.appendChild(newRow);
         }
 
-        function closePettyCashModal() {
-            setTimeout(() => {
+        // NEW: Wait for the hidden iframe to finish loading the PDF before closing the modal
+        document.getElementById('hiddenPettyCashFrame').addEventListener('load', function() {
+            // Only trigger if the iframe isn't empty (avoids triggering on page load)
+            if (this.src !== 'about:blank' && this.contentWindow.location.href !== 'about:blank') {
+                
                 let modalInstance = bootstrap.Modal.getInstance(document.getElementById('pettyCashModal'));
                 if(modalInstance) {
                     modalInstance.hide();
+                    
+                    // Reset the form safely
                     document.getElementById('pettyCashForm').reset();
                     
+                    // Clean up extra rows, keeping only the first one
                     let container = document.getElementById('pcItemsContainer');
                     let rows = container.querySelectorAll('.pc-item-row');
                     for (let i = 1; i < rows.length; i++) {
                         rows[i].remove();
                     }
+                    
+                    // Show a success message
+                    showToast("<i class='bi bi-printer-fill me-2'></i> Purchase Requisition generated successfully.", "success");
                 }
-            }, 1000);
-        }
+            }
+        });
 
         function triggerBreakGlass() {
             // Opens our sleek custom modal instead of the ugly browser popup

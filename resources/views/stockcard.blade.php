@@ -36,7 +36,7 @@
         @media print {
             @page { 
                 size: 13in 8.5in; 
-                margin: 0; /* THIS REMOVES THE BROWSER URL, DATE, AND PAGE NUMBERS */
+                margin: 0.3in 0; /* FIXED: Added physical top & bottom margin for multi-page tables */
             }
             body { 
                 background: none; 
@@ -48,14 +48,21 @@
             }
             .paper-preview { 
                 margin: 0; 
-                padding: 0.4in 0.5in; /* Replaces the @page margin so content doesn't hit the paper edge */
+                padding: 0 0.5in; /* FIXED: Removed top/bottom padding so @page margin handles it */
                 box-shadow: none; 
                 width: 13in; 
-                height: 8.5in; /* Hard limits the height to exactly one page to stop spillover */
+                height: auto; /* FIXED: Allows the table to naturally flow onto page 2 */
+                min-height: 8.5in;
                 box-sizing: border-box;
                 page-break-after: always; 
-                page-break-inside: avoid;
+                page-break-inside: auto; /* FIXED: Allows the table to break across pages safely */
             }
+            
+            /* Ensures rows don't get cut in half, and the header repeats beautifully on page 2 */
+            .ledger-table { page-break-inside: auto; }
+            .ledger-table tr { page-break-inside: avoid; page-break-after: auto; }
+            .ledger-table thead { display: table-header-group; } 
+
             /* Prevents a blank white page at the very end of the print job */
             .paper-preview:last-of-type {
                 page-break-after: auto;
@@ -82,7 +89,6 @@
         
         <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
         
-        {{-- Excel Export Button (Exports the currently clicked ID & Year) --}}
         <a href="/export-stockcard/{{ $item->id }}?month={{ $month_filter }}&year={{ $year_filter ?? date('Y') }}" class="btn-action" style="background-color: #107c41; color: white;">
             <i class="bi bi-file-earmark-excel"></i> Excel
         </a>
