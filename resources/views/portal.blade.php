@@ -49,7 +49,6 @@
 </head>
 <body>
 
-
     {{-- Toast Notification Container --}}
     <div class="toast-container position-fixed top-0 end-0 p-4" style="z-index: 1055;">
         <div id="liveToast" class="toast align-items-center text-white border-0 shadow-lg rounded-4" role="alert" aria-live="assertive" aria-atomic="true">
@@ -89,7 +88,9 @@
             @endif
 
             @if(session('success'))
-                {{-- (Keep your existing success alert block here) --}}
+                <!-- Wipes the cart memory on successful submission -->
+                <script>localStorage.removeItem('rmph_cart');</script>
+                
                 <div class="alert alert-success border-0 rounded-4 p-4 mb-4 text-center shadow-sm">
                     <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i> 
                     <h5 class="fw-bold text-success mb-3">{{ session('success') }}</h5>
@@ -209,9 +210,13 @@
                                                 <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 border border-danger border-opacity-25">Out of Stock</span>
                                                 <button type="button" class="btn btn-sm btn-light text-muted fw-bold rounded-pill shadow-sm" disabled><i class="bi bi-x-circle me-1"></i> Add</button>
                                             @else
-                                                <button type="button" class="btn btn-sm {{ $portalMode !== 'NORMAL' ? 'btn-danger' : 'btn-primary' }} fw-bold rounded-pill shadow-sm px-3" onclick="addDirectlyToCart('{{ $item->id }}', '{{ addslashes($item->name) }}', {{ $item->quantity }})">
-                                                    <i class="bi bi-plus-lg"></i> Add
-                                                </button>
+                                                <div class="d-flex align-items-center gap-2 mt-1">
+                                                    <input type="number" id="dirQty-{{ $item->id }}" class="form-control form-control-sm text-center fw-bold border-secondary-subtle shadow-sm" style="width: 65px; border-radius: 8px;" value="1" min="1" max="{{ $item->quantity }}">
+                                                    
+                                                    <button type="button" class="btn btn-sm {{ $portalMode !== 'NORMAL' ? 'btn-danger' : 'btn-primary' }} fw-bold rounded-pill shadow-sm px-3" onclick="addFromDirectory('{{ $item->id }}', '{{ addslashes($item->name) }}', {{ $item->quantity }})">
+                                                        <i class="bi bi-plus-lg"></i> Add
+                                                    </button>
+                                                </div>
                                             @endif
                                         </div>
                                     </li>
@@ -338,8 +343,14 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const allSupplies = @json($supplies);
-        let cart = [];
+        // 1. Initialize cart from browser LocalStorage, or use empty array if new
+        let cart = JSON.parse(localStorage.getItem('rmph_cart')) || [];
         let currentPillFilter = 'All';
+
+        // Run on page load to render saved items automatically
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUI();
+        });
 
         // Toast Notification System
         function showToast(message, type = 'danger') {
@@ -434,10 +445,17 @@
             itemRow.style.setProperty('display', 'flex', 'important');
         }
 
-        function addDirectlyToCart(id, name, maxStock) {
+        function addFromDirectory(id, name, maxStock) {
+            let qtyInput = document.getElementById('dirQty-' + id);
+            let qtyToAdd = parseInt(qtyInput.value) || 1;
+
+            if (qtyToAdd < 1) {
+                showToast("<i class='bi bi-info-circle-fill me-2'></i> Quantity must be at least 1.", "warning text-dark");
+                return;
+            }
+
             let existing = cart.find(i => i.id == id);
-            let currentQty = existing ? existing.qty : 0;
-            let qtyToAdd = 1; 
+            let currentQty = existing ? parseInt(existing.qty) : 0;
 
             if (currentQty + qtyToAdd > maxStock) {
                 showToast(`<i class="bi bi-exclamation-triangle-fill me-2"></i> Cannot request more than available stock (${maxStock}).`, 'danger');
@@ -445,7 +463,7 @@
             }
 
             if(existing) {
-                existing.qty = parseInt(existing.qty) + qtyToAdd;
+                existing.qty = currentQty + qtyToAdd;
             } else {
                 cart.push({id: id, name: name, qty: qtyToAdd});
             }
@@ -455,9 +473,13 @@
             let cartOffcanvas = new bootstrap.Offcanvas(document.getElementById('cartOffcanvas'));
             cartOffcanvas.show();
             
-            showToast(`<i class="bi bi-check-circle-fill me-2"></i> Added <b>1</b> x ${name} to cart.`, 'success');
+            showToast(`<i class="bi bi-check-circle-fill me-2"></i> Added <b>${qtyToAdd}</b> x ${name} to cart.`, 'success');
+            
+            // Reset the input box back to 1 for convenience
+            qtyInput.value = 1;
         }
 
+        // Keep the old add function specifically for the manual input selection logic
         function addItem() {
             let sel = document.getElementById('supplySelect');
             let qty = document.getElementById('qtyInput').value;
@@ -489,6 +511,9 @@
         }
 
         function updateUI() {
+            // Save to browser memory
+            localStorage.setItem('rmph_cart', JSON.stringify(cart));
+
             document.getElementById('cartData').value = JSON.stringify(cart);
             document.getElementById('fabCartCount').innerText = cart.length;
             
@@ -577,7 +602,7 @@
             container.appendChild(newRow);
         }
 
-        // NEW: Wait for the hidden iframe to finish loading the PDF before closing the modal
+        // Wait for the hidden iframe to finish loading the PDF before closing the modal
         document.getElementById('hiddenPettyCashFrame').addEventListener('load', function() {
             // Only trigger if the iframe isn't empty (avoids triggering on page load)
             if (this.src !== 'about:blank' && this.contentWindow.location.href !== 'about:blank') {

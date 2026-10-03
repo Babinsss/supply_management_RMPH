@@ -498,6 +498,49 @@ class SupplyController extends Controller
     {
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
 
+        // 1. ADVANCED TOP ITEMS AGGREGATION (Timeframe + Department)
+        $fetchTopItems = function ($startDate) {
+            $records = DepartmentRequest::where('created_at', '>=', $startDate)
+                ->where('status', 'Approved')
+                ->selectRaw('supply_id, department_name, SUM(quantity) as total_qty')
+                ->groupBy('supply_id', 'department_name')
+                ->with('supply')
+                ->get();
+
+            // Group by department, then aggregate
+            $grouped = $records->groupBy('department_name')->map(function ($deptRecords) {
+                return $deptRecords->sortByDesc('total_qty')->take(6)->values()->map(function ($row) {
+                    return [
+                        'name' => Str::limit($row->supply?->name ?? 'Deleted Item', 28),
+                        'qty'  => (int) $row->total_qty,
+                    ];
+                });
+            });
+
+            // Calculate "All Departments" aggregate
+            $allAggregate = $records->groupBy('supply_id')->map(function ($itemRecords) {
+                return [
+                    'name' => Str::limit($itemRecords->first()->supply?->name ?? 'Deleted Item', 28),
+                    'qty'  => $itemRecords->sum('total_qty')
+                ];
+            })->sortByDesc('qty')->take(6)->values();
+
+            $grouped->put('All Departments', $allAggregate);
+            return $grouped;
+        };
+
+        $chartTopItems = [
+            'week'  => $fetchTopItems(now()->subDays(7)),
+            'month' => $fetchTopItems(now()->subDays(30)),
+            'year'  => $fetchTopItems(now()->subDays(365)),
+        ];
+
+        // Extract a clean list of departments that actually have approved data
+        $activeDepartments = $chartTopItems['year']->keys()->reject(function ($key) {
+            return $key === 'All Departments';
+        })->sort()->values();
+
+        // 2. TIMELINE REQUESTS PAGINATION
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
@@ -525,12 +568,13 @@ class SupplyController extends Controller
         );
 
         return view('approver.dashboard', [
-            'requests' => $paginatedRequests, 
-            'pending_count' => $pending_count,
-            'low_stock_count' => $lowStockCount
+            'requests'          => $paginatedRequests, 
+            'pending_count'     => $pending_count,
+            'low_stock_count'   => $lowStockCount,
+            'topItemsData'      => $chartTopItems, // Passed to QMO View
+            'activeDepartments' => $activeDepartments // Passed to populate the dropdown
         ]);
     }
-
     public function approverInventory()
     {
         $supplies = Supply::orderBy('name', 'asc')->get();

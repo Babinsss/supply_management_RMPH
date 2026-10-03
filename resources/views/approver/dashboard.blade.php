@@ -22,6 +22,46 @@
         </div>
     </div>
 
+    <!-- NEW: TOP REQUESTED ITEMS ANALYTICS (QMO METRICS) -->
+    <div class="bento-card mb-5 bg-body border border-secondary-subtle shadow-sm">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3 pb-3 border-bottom border-secondary-subtle">
+            <div>
+                <h5 class="fw-bolder mb-0 text-dark">
+                    <i class="bi bi-bar-chart-fill text-primary me-2"></i> Most Requested Items
+                </h5>
+                <p class="text-muted small mb-0 mt-1">Highest requisition volume approved by Supply Section</p>
+            </div>
+
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- DEPARTMENT FILTER DROPDOWN -->
+                <select id="chartDeptFilter" class="form-select form-select-sm input-modern shadow-sm" style="min-width: 200px; max-width: 250px;" onchange="updateChart()">
+                    <option value="All Departments" selected>All Departments</option>
+                    @if(isset($activeDepartments))
+                        @foreach($activeDepartments as $dept)
+                            <option value="{{ $dept }}">{{ $dept }}</option>
+                        @endforeach
+                    @endif
+                </select>
+
+                <!-- TIMEFRAME SELECTOR PILLS -->
+                <div class="btn-group p-1 bg-body-tertiary rounded-4 border border-secondary-subtle shadow-sm" role="group">
+                    <button type="button" class="btn btn-sm btn-primary text-white rounded-3 fw-bold px-3 active" id="btnWeek" onclick="switchTopTimeframe('week')">
+                        7 Days
+                    </button>
+                    <button type="button" class="btn btn-sm btn-light rounded-3 fw-bold px-3" id="btnMonth" onclick="switchTopTimeframe('month')">
+                        Month
+                    </button>
+                    <button type="button" class="btn btn-sm btn-light rounded-3 fw-bold px-3" id="btnYear" onclick="switchTopTimeframe('year')">
+                        Year
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHART RENDER CONTAINER -->
+        <div id="topRequestedChart" style="min-height: 280px;"></div>
+    </div>
+
     {{-- The Audit Grid Header --}}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 class="fw-bolder mb-0 text-dark"><i class="bi bi-ui-checks-grid text-primary me-2"></i> Quality Management Queue</h5>
@@ -43,7 +83,7 @@
                 $hasCriticalStock = false;
                 $highVolume = false;
                 foreach($batch['items'] as $req) {
-                    if($req->supply->quantity <= $req->supply->reorder_level) $hasCriticalStock = true;
+                    if($req->supply && $req->supply->quantity <= $req->supply->reorder_level) $hasCriticalStock = true;
                     if($req->quantity >= 20) $highVolume = true;
                 }
             @endphp
@@ -84,7 +124,7 @@
                         <div class="text-muted-soft small fw-bold text-uppercase mb-2">Requested Items ({{ count($batch['items']) }})</div>
                         @foreach(collect($batch['items'])->take(2) as $req)
                             <div class="small fw-medium text-truncate mb-1">
-                                <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply->name }}
+                                <span class="text-primary fw-bolder">{{ $req->quantity }}x</span> {{ $req->supply?->name ?? 'Deleted/Archived Item' }}
                             </div>
                         @endforeach
                         @if(count($batch['items']) > 2)
@@ -143,14 +183,18 @@
                                             <tbody>
                                                 @foreach($batch['items'] as $req)
                                                     @php
-                                                        $remaining = $req->supply->quantity - $req->quantity;
+                                                        // Using null-safe operators in case the supply was deleted
+                                                        $supplyQty = $req->supply?->quantity ?? 0;
+                                                        $supplyReorder = $req->supply?->reorder_level ?? 0;
+                                                        
+                                                        $remaining = $supplyQty - $req->quantity;
                                                         $isNegative = $remaining < 0;
-                                                        $isLow = $remaining <= $req->supply->reorder_level && !$isNegative;
+                                                        $isLow = $remaining <= $supplyReorder && !$isNegative;
                                                     @endphp
                                                     <tr class="border-bottom border-light">
-                                                        <td class="fw-bold text-dark">{{ $req->supply->name }}</td>
+                                                        <td class="fw-bold text-dark">{{ $req->supply?->name ?? 'Deleted/Archived Item' }}</td>
                                                         <td class="text-center fw-bolder text-primary">{{ $req->quantity }}</td>
-                                                        <td class="text-center fw-bold">{{ $req->supply->quantity }}</td>
+                                                        <td class="text-center fw-bold">{{ $supplyQty }}</td>
                                                         <td class="text-end">
                                                             @if($isNegative)
                                                                 <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-x-octagon-fill me-1"></i> Deficit ({{ $remaining }})</span>
@@ -193,6 +237,8 @@
     @endif
 
     <x-slot name="scripts">
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+        
         <script>
             // Live Server Ping
             let currentCount = parseInt("{{ $pending_count }}") || 0;
@@ -219,6 +265,94 @@
                     } else {
                         card.style.display = 'none';
                     }
+                });
+            }
+
+            // --- APEX CHARTS LOGIC ---
+            const topDatasets = @json($topItemsData ?? ['week' => [], 'month' => [], 'year' => []]);
+            let currentTimeframe = 'week';
+
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+
+            // Initial load data
+            let initialData = topDatasets.week && topDatasets.week['All Departments'] ? topDatasets.week['All Departments'] : [];
+            let defaultCategories = initialData.length ? initialData.map(item => item.name) : ['No requisitions recorded'];
+            let defaultSeriesData = initialData.length ? initialData.map(item => item.qty) : [0];
+
+            const chartOptions = {
+                chart: {
+                    type: 'bar',
+                    height: 280,
+                    toolbar: { show: false },
+                    fontFamily: 'Plus Jakarta Sans, sans-serif'
+                },
+                plotOptions: {
+                    bar: {
+                        borderRadius: 8,
+                        horizontal: true,
+                        barHeight: '55%',
+                        distributed: false
+                    }
+                },
+                colors: ['#0d6efd'],
+                dataLabels: {
+                    enabled: true,
+                    formatter: (val) => val > 0 ? val + ' units' : '',
+                    style: { fontWeight: 700, colors: ['#ffffff'] }
+                },
+                series: [{
+                    name: 'Total Requested',
+                    data: defaultSeriesData
+                }],
+                xaxis: {
+                    categories: defaultCategories,
+                    labels: { style: { colors: textColor, fontWeight: 600 } }
+                },
+                yaxis: {
+                    labels: { style: { colors: textColor, fontWeight: 700 }, maxWidth: 200 }
+                },
+                grid: {
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                    strokeDashArray: 4
+                },
+                tooltip: {
+                    theme: isDark ? 'dark' : 'light',
+                    y: { formatter: (val) => val + ' units approved' }
+                }
+            };
+
+            const topItemsChart = new ApexCharts(document.querySelector("#topRequestedChart"), chartOptions);
+            topItemsChart.render();
+
+            function switchTopTimeframe(period) {
+                currentTimeframe = period;
+
+                ['btnWeek', 'btnMonth', 'btnYear'].forEach(id => {
+                    document.getElementById(id).classList.remove('btn-primary', 'text-white', 'active');
+                    document.getElementById(id).classList.add('btn-light');
+                });
+
+                const activeBtnMap = { week: 'btnWeek', month: 'btnMonth', year: 'btnYear' };
+                const activeBtn = document.getElementById(activeBtnMap[period]);
+                activeBtn.classList.remove('btn-light');
+                activeBtn.classList.add('btn-primary', 'text-white', 'active');
+
+                updateChart();
+            }
+
+            function updateChart() {
+                const selectedDept = document.getElementById('chartDeptFilter').value;
+                const dataset = topDatasets[currentTimeframe][selectedDept] || [];
+
+                topItemsChart.updateOptions({
+                    xaxis: {
+                        categories: dataset.length ? dataset.map(item => item.name) : ['No records found']
+                    },
+                    series: [{
+                        name: 'Total Requested',
+                        data: dataset.length ? dataset.map(item => item.qty) : [0]
+                    }]
                 });
             }
         </script>
