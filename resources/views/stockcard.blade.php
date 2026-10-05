@@ -36,7 +36,7 @@
         @media print {
             @page { 
                 size: 13in 8.5in; 
-                margin: 0.3in 0; /* FIXED: Added physical top & bottom margin for multi-page tables */
+                margin: 0.3in 0; 
             }
             body { 
                 background: none; 
@@ -48,22 +48,20 @@
             }
             .paper-preview { 
                 margin: 0; 
-                padding: 0 0.5in; /* FIXED: Removed top/bottom padding so @page margin handles it */
+                padding: 0 0.5in; 
                 box-shadow: none; 
                 width: 13in; 
-                height: auto; /* FIXED: Allows the table to naturally flow onto page 2 */
+                height: auto; 
                 min-height: 8.5in;
                 box-sizing: border-box;
                 page-break-after: always; 
-                page-break-inside: auto; /* FIXED: Allows the table to break across pages safely */
+                page-break-inside: auto; 
             }
             
-            /* Ensures rows don't get cut in half, and the header repeats beautifully on page 2 */
             .ledger-table { page-break-inside: auto; }
             .ledger-table tr { page-break-inside: avoid; page-break-after: auto; }
             .ledger-table thead { display: table-header-group; } 
 
-            /* Prevents a blank white page at the very end of the print job */
             .paper-preview:last-of-type {
                 page-break-after: auto;
             }
@@ -74,7 +72,6 @@
 
     <div class="print-toolbar no-print">
         <form method="GET" action="/stockcard/{{ $item->id }}" class="d-flex align-items-center mb-0 m-0">
-            <!-- Ensure it stays on the selected year from the archive -->
             <input type="hidden" name="year" value="{{ $year_filter ?? date('Y') }}">
             
             <label class="text-white me-2 fw-bold" style="font-size: 12px;">VIEW MONTH:</label>
@@ -96,7 +93,6 @@
         <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print All Pages</button>
     </div>
     
-    {{-- LOOP THROUGH EVERY MATCHING SUPPLIER & CREATE A PAGE --}}
     @foreach($cardsData as $card)
     <div class="paper-preview">
         
@@ -191,7 +187,6 @@
                 </tr>
 
                 @php
-                    // Sort releases chronologically (oldest to newest) so the balance cascades downward
                     $sortedReleases = collect($card['releases'])->sortBy('created_at');
                 @endphp
 
@@ -201,13 +196,25 @@
                     <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>
                     <td class="desc-col">{{ $release->department_name }} ({{ $release->requested_by }})</td>
                     
-                    {{-- Received --}}
-                    <td></td><td></td><td></td>
-                    
-                    {{-- Issued (Qty, Unit Cost, Total Cost) --}}
-                    <td style="font-weight: bold;">{{ $release->quantity }}</td>
-                    <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
-                    <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $release->quantity, 2) : '' }}</td>
+                    @if ($release->quantity < 0)
+                        {{-- POSITIVE ADJUSTMENT / RESTOCK -> Put in RECEIVED Column --}}
+                        @php $absQty = abs($release->quantity); @endphp
+                        
+                        <td style="font-weight: bold; color: #107c41;">{{ $absQty }}</td>
+                        <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
+                        <td style="font-weight: bold; color: #107c41;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $absQty, 2) : '' }}</td>
+                        
+                        {{-- Leave ISSUED Blank --}}
+                        <td></td><td></td><td></td>
+                    @else
+                        {{-- NORMAL ISSUANCE -> Put in ISSUED Column --}}
+                        {{-- Leave RECEIVED Blank --}}
+                        <td></td><td></td><td></td>
+                        
+                        <td style="font-weight: bold;">{{ $release->quantity }}</td>
+                        <td>{{ $card['item']->unit_price ? number_format($card['item']->unit_price, 2) : '' }}</td>
+                        <td style="font-weight: bold;">{{ $card['item']->unit_price ? number_format($card['item']->unit_price * $release->quantity, 2) : '' }}</td>
+                    @endif
                     
                     {{-- Balance (Qty, Unit Cost, Total Cost) --}}
                     <td style="font-weight: bold; font-size: 11px;">{{ $release->running_balance }}</td>

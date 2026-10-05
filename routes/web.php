@@ -7,36 +7,31 @@ use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
-| SHARED ROUTES (Accessible by BOTH Admin and Superadmin)
+| SHARED ROUTES (Accessible by Admin, Superadmin, and Forms Admin)
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth'])->group(function () {
     Route::get('/stockcard/{item_id}', [SupplyController::class, 'stockcard']);
     Route::get('/print-inventory', [SupplyController::class, 'printInventory']);
-    
-    // Item Usage / Top Requestors Report (Shared Access)
     Route::get('/print-item-usage', [SupplyController::class, 'printItemUsage']);
-    
-    // Live Inventory Sync Route
     Route::get('/api/inventory/live', [SupplyController::class, 'liveInventory']); 
-    
-    // --- PETTY CASH ADMIN LEDGER ROUTES ---
+});
+
+// --- RESTRICTED LEDGERS (Hidden from Forms Admin) ---
+Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
+    Route::get('/stockcard-archives', [ArchiveController::class, 'index'])->name('stockcard.archives');
     Route::get('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'index']);
     Route::post('/petty-cash', [App\Http\Controllers\PettyCashController::class, 'store']);
     Route::get('/petty-cash/print/{id}', [App\Http\Controllers\PettyCashController::class, 'printReceipt']);
 });
 
-// --- NEW: SHARED STOCKCARD ARCHIVES ---
-Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
-    Route::get('/stockcard-archives', [ArchiveController::class, 'index'])->name('stockcard.archives');
-});
-
 /*
 |--------------------------------------------------------------------------
-| SUPPLY SECTION (ADMIN) ROUTES
+| SUPPLY SECTION & FORMS (ADMIN) ROUTES
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'role:admin'])->group(function () {
+// NEW: Added forms_admin to this middleware
+Route::middleware(['auth', 'role:admin,forms_admin'])->group(function () {
     Route::get('/', [SupplyController::class, 'index']);
     Route::get('/dashboard', [SupplyController::class, 'dashboard'])->name('dashboard');
     Route::post('/add', [SupplyController::class, 'addItem']);

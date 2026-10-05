@@ -9,7 +9,6 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
-// Make sure these are at the top for the Excel exporter!
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -24,30 +23,62 @@ class SupplyController extends Controller
 
    public function dashboard()
     {
-        $supplies = Supply::all();
-        $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
+        $role = Auth::user()->role;
         
-        // --- Fetch the full list of depleted/critical items for the modal
-        $criticalSupplies = Supply::whereRaw('quantity <= reorder_level')
-            ->orderBy('quantity', 'asc')
-            ->orderBy('name', 'asc')
-            ->get();
+        // 1. Filter Supplies & Critical Stock
+        $supplyQuery = Supply::query();
+        $criticalQuery = Supply::whereRaw('quantity <= reorder_level');
+
+        if ($role === 'forms_admin') {
+            $supplyQuery->where('category', 'Forms');
+            $criticalQuery->where('category', 'Forms');
+        } elseif ($role === 'admin') {
+            $supplyQuery->where(function($q) {
+                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+            });
+            $criticalQuery->where(function($q) {
+                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+            });
+        }
+
+        $supplies = $supplyQuery->get();
+        $criticalSupplies = $criticalQuery->orderBy('quantity', 'asc')->orderBy('name', 'asc')->get();
+        $lowStockCount = $criticalSupplies->count();
         
-        // --- Generate 7-Day Trend Data for the Sparkline Chart ---
+        // --- 7-Day Trend Data for Sparkline ---
         $chartDates = [];
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
 
-            // Count how many unique batches (requests) came in on this specific day
-            $chartData[] = DepartmentRequest::whereDate('created_at', $date)
-                                            ->distinct('batch_id')
-                                            ->count('batch_id');
+            $reqsQuery = DepartmentRequest::whereDate('created_at', $date);
+            if ($role === 'forms_admin') {
+                $reqsQuery->whereHas('supply', function($q) {
+                    $q->where('category', 'Forms');
+                });
+            } elseif ($role === 'admin') {
+                $reqsQuery->whereDoesntHave('supply', function($q) {
+                    $q->where('category', 'Forms');
+                });
+            }
+            $chartData[] = $reqsQuery->distinct('batch_id')->count('batch_id');
         }
 
-        // SMART SORT: Pending requests Oldest->Newest at the top. Processed requests Newest->Oldest at the bottom.
-        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
+        // 2. Filter Request Processing Timeline
+        $allRequestsQuery = DepartmentRequest::with(['supply', 'issuer']);
+        
+        if ($role === 'forms_admin') {
+            $allRequestsQuery->whereHas('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        } elseif ($role === 'admin') {
+            $allRequestsQuery->whereDoesntHave('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        }
+
+        $allRequests = $allRequestsQuery
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
@@ -90,7 +121,7 @@ class SupplyController extends Controller
             'low_stock_count' => $lowStockCount,
             'chartDates' => $chartDates,
             'chartData' => $chartData,
-            'criticalSupplies' => $criticalSupplies // Passed to View
+            'criticalSupplies' => $criticalSupplies
         ]);
     }
 
@@ -118,22 +149,6 @@ class SupplyController extends Controller
         return redirect()->back()
             ->with('success', 'New item added successfully!')
             ->with('active_category', $newItem->category);
-    }
-
-    public function updateStock(Request $request, $id)
-    {
-        $item = Supply::findOrFail($id);
-        $adjustment = (int)$request->input('adjustment');
-
-        $item->quantity += $adjustment;
-        if ($item->quantity < 0) {
-            $item->quantity = 0;
-        }
-        $item->save();
-
-        \App\Models\ActivityLog::log('Inventory', "Adjusted stock for {$item->name} by {$adjustment}. New total: {$item->quantity}");
-
-        return redirect()->route('dashboard')->with('success', "Stock updated successfully for {$item->name}!");
     }
     
     public function update(Request $request, $id)
@@ -192,7 +207,6 @@ class SupplyController extends Controller
         return redirect()->route('dashboard')->with('success', 'Item successfully deleted.');
     }
 
-    // ADD THIS ENTIRE METHOD:
     public function restoreItem($id)
     {
         $item = Supply::withTrashed()->findOrFail($id);
@@ -224,7 +238,6 @@ class SupplyController extends Controller
         $isEmergency = $batchReqs->first()->is_emergency;
         $batchTime = $batchReqs->first()->created_at;
         
-        // --- EMERGENCY BYPASS LOGIC ---
         if (!$isEmergency) {
             $olderPendingExists = DepartmentRequest::where('status', 'Pending')
                 ->where('created_at', '<', $batchTime)
@@ -242,7 +255,6 @@ class SupplyController extends Controller
             }
         }
 
-        // --- Prevent Duplicate Line Overdraw ---
         $supplySums = [];
         foreach ($batchReqs as $req) {
             if (!isset($supplySums[$req->supply_id])) {
@@ -258,7 +270,6 @@ class SupplyController extends Controller
             }
         }
         
-        // --- Database Transaction Safety Net ---
         \Illuminate\Support\Facades\DB::transaction(function () use ($batchReqs) {
             foreach ($batchReqs as $req) {
                 $req->supply->quantity -= $req->quantity;
@@ -300,8 +311,8 @@ class SupplyController extends Controller
         $categories = \App\Models\Category::where('is_active', true)->orderBy('name')->get();
         
         $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
-        $dayOfWeek = $now->dayOfWeekIso; // 1 = Mon, 7 = Sun
-        $currentHour = $now->hour;       // 0 to 23
+        $dayOfWeek = $now->dayOfWeekIso; 
+        $currentHour = $now->hour;       
 
         if (in_array($dayOfWeek, [6, 7])) {
             $portalMode = 'CLOSED_WEEKEND';
@@ -330,7 +341,6 @@ class SupplyController extends Controller
             return redirect()->route('portal')->with('danger', 'Please add items to your cart before submitting.');
         }
 
-        // --- TIME & SCHEDULE SECURITY ---
         $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
         $dayOfWeek = $now->dayOfWeekIso;
         $currentHour = $now->hour;
@@ -393,14 +403,39 @@ class SupplyController extends Controller
 
     public function pendingCountApi()
     {
-        $pendingCount = DepartmentRequest::where('status', 'Pending')->distinct('batch_id')->count('batch_id');
+        $role = Auth::user()->role;
+        $reqsQuery = DepartmentRequest::where('status', 'Pending');
+        
+        if ($role === 'forms_admin') {
+            $reqsQuery->whereHas('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        } elseif ($role === 'admin') {
+            $reqsQuery->whereDoesntHave('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        }
+        
+        $pendingCount = $reqsQuery->distinct('batch_id')->count('batch_id');
         return response()->json(['count' => $pendingCount]);
     }
     
     public function inventory() 
     {
-        $supplies = Supply::orderBy('name', 'asc')->get();
+        $role = Auth::user()->role;
+        $query = Supply::orderBy('name', 'asc');
+        
+        if ($role === 'forms_admin') {
+            $query->where('category', 'Forms');
+        } elseif ($role === 'admin') {
+            $query->where(function($q) {
+                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+            });
+        }
+
+        $supplies = $query->get();
         $categories = \App\Models\Category::orderBy('name')->get(); 
+        
         return view('inventory', compact('supplies', 'categories'));
     }
 
@@ -408,6 +443,7 @@ class SupplyController extends Controller
     {
         $month = $request->month;
         $year = $request->year;
+        $role = Auth::user()->role;
 
         $query = Supply::query();
 
@@ -422,7 +458,7 @@ class SupplyController extends Controller
             }
         }], 'quantity');
 
-        // 2. NEW POLICY: ONLY fetch items that have at least one approved issuance in this timeframe!
+        // 2. ONLY fetch items that have at least one approved issuance in this timeframe
         $query->whereHas('departmentRequests', function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
               ->where('quantity', '>', 0);
@@ -433,9 +469,19 @@ class SupplyController extends Controller
             }
         });
 
-        // 3. Filter by category if selected
-        if ($request->has('category') && $request->category !== 'ALL') {
+        // 3. SMART CATEGORY & ROLE FILTERING
+        if ($role === 'forms_admin') {
+            // Syrone is strictly locked to only printing Forms
+            $query->where('category', 'Forms');
+        } elseif ($request->has('category') && $request->category !== 'ALL') {
+            // If an Admin/Superadmin specifically selected a category, show only that category
             $query->where('category', $request->category);
+        } else {
+            // If an Admin/Superadmin selected "ALL Categories", exclude 'Forms' to save paper 
+            // and keep the general medical/office supplies report clean!
+            $query->where(function($q) {
+                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+            });
         }
 
         $supplies = $query->orderBy('name', 'asc')->get();
@@ -519,7 +565,6 @@ class SupplyController extends Controller
     {
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
 
-        // 1. ADVANCED TOP ITEMS AGGREGATION (Timeframe + Department)
         $fetchTopItems = function ($startDate) {
             $records = DepartmentRequest::where('created_at', '>=', $startDate)
                 ->where('status', 'Approved')
@@ -528,7 +573,6 @@ class SupplyController extends Controller
                 ->with('supply')
                 ->get();
 
-            // Group by department, then aggregate
             $grouped = $records->groupBy('department_name')->map(function ($deptRecords) {
                 return $deptRecords->sortByDesc('total_qty')->take(6)->values()->map(function ($row) {
                     return [
@@ -538,7 +582,6 @@ class SupplyController extends Controller
                 });
             });
 
-            // Calculate "All Departments" aggregate
             $allAggregate = $records->groupBy('supply_id')->map(function ($itemRecords) {
                 return [
                     'name' => Str::limit($itemRecords->first()->supply?->name ?? 'Deleted Item', 28),
@@ -556,12 +599,10 @@ class SupplyController extends Controller
             'year'  => $fetchTopItems(now()->subDays(365)),
         ];
 
-        // Extract a clean list of departments that actually have approved data
         $activeDepartments = $chartTopItems['year']->keys()->reject(function ($key) {
             return $key === 'All Departments';
         })->sort()->values();
 
-        // 2. TIMELINE REQUESTS PAGINATION
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
@@ -592,8 +633,8 @@ class SupplyController extends Controller
             'requests'          => $paginatedRequests, 
             'pending_count'     => $pending_count,
             'low_stock_count'   => $lowStockCount,
-            'topItemsData'      => $chartTopItems, // Passed to QMO View
-            'activeDepartments' => $activeDepartments // Passed to populate the dropdown
+            'topItemsData'      => $chartTopItems, 
+            'activeDepartments' => $activeDepartments 
         ]);
     }
     public function approverInventory()
@@ -607,7 +648,6 @@ class SupplyController extends Controller
         $clickedItem = Supply::findOrFail($id);
         $matchingSupplies = Supply::where('name', $clickedItem->name)->get();
         
-        // ADDED: Year filter support for the archives
         $month_filter = $request->input('month', date('m'));
         $year_filter = $request->input('year', date('Y')); 
         
@@ -628,7 +668,7 @@ class SupplyController extends Controller
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
                 ->whereMonth('created_at', $month_filter)
-                ->whereYear('created_at', $year_filter) // UPDATED
+                ->whereYear('created_at', $year_filter)
                 ->orderBy('created_at', 'asc')
                 ->orderBy('id', 'asc') 
                 ->get();
@@ -636,7 +676,7 @@ class SupplyController extends Controller
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
-                ->where('created_at', '>=', $year_filter . '-' . $month_filter . '-01 00:00:00') // UPDATED
+                ->where('created_at', '>=', $year_filter . '-' . $month_filter . '-01 00:00:00')
                 ->sum('quantity');
 
             $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;
@@ -681,9 +721,10 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         
+        // FIX: Change '>' to '!=' so it includes the negative adjustments
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
-            ->where('quantity', '>', 0)
+            ->where('quantity', '!=', 0) 
             ->orderBy('updated_at', 'asc')
             ->get();
 
@@ -701,14 +742,27 @@ class SupplyController extends Controller
 
         $currentBalance = $startingBalance;
         foreach ($releases as $release) {
-            $currentBalance -= $release->quantity;
-            $transactions->push([
-                'date' => $release->updated_at,
-                'department' => $release->department_name,
-                'delivery_qty' => '',
-                'qty_issued' => $release->quantity,
-                'balance' => $currentBalance
-            ]);
+            $currentBalance -= $release->quantity; // Subtracting a negative adds it to the balance
+            
+            if ($release->quantity < 0) {
+                // It is a positive adjustment / restock! Put it in the Delivery column.
+                $transactions->push([
+                    'date' => $release->updated_at,
+                    'department' => $release->department_name,
+                    'delivery_qty' => abs($release->quantity), // Make it a positive number visually
+                    'qty_issued' => '',
+                    'balance' => $currentBalance
+                ]);
+            } else {
+                // Standard issue to a department
+                $transactions->push([
+                    'date' => $release->updated_at,
+                    'department' => $release->department_name,
+                    'delivery_qty' => '',
+                    'qty_issued' => $release->quantity,
+                    'balance' => $currentBalance
+                ]);
+            }
         }
 
         return view('bincard', compact('item', 'transactions'));
@@ -733,7 +787,7 @@ class SupplyController extends Controller
         foreach ($items as $item) {
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '>', 0)
+                ->where('quantity', '!=', 0) // <--- Now allows reverse math restocks!
                 ->whereYear('updated_at', $currentYear)
                 ->get();
 
@@ -758,14 +812,15 @@ class SupplyController extends Controller
 
         return view('rapc', compact('baseItem', 'items', 'risNumbers', 'risDates'));
     }
+    
     public function printPettyCashRequest(Request $request)
     {
         $data = $request->validate([
             'department_name' => 'required|string',
             'requested_by' => 'required|string',
-            'item_name' => 'required|array|min:1|max:10', // <--- Added max:10 limit
+            'item_name' => 'required|array|min:1|max:10', 
             'item_name.*' => 'required|string',
-            'quantity' => 'required|array|min:1|max:10',  // <--- Added max:10 limit
+            'quantity' => 'required|array|min:1|max:10',  
             'quantity.*' => 'required|integer|min:1',
             'purpose' => 'required|string',
         ]);
@@ -802,8 +857,7 @@ class SupplyController extends Controller
             $clickedItem->quantity += $adjustment;
             $clickedItem->save();
             
-            // NEW FIX: Log this as a negative issue so the "Reverse Math" protects previous months!
-            // We use a negative quantity to represent items COMING IN to the inventory ledger.
+            // Log this as a negative issue so the "Reverse Math" protects previous months
             \App\Models\DepartmentRequest::create([
                 'batch_id' => $batchId,
                 'department_name' => 'SYSTEM RESTOCK',
@@ -889,8 +943,18 @@ class SupplyController extends Controller
 
     public function lowStockApi()
     {
-        $criticalItems = Supply::whereRaw('quantity <= reorder_level')
-            ->select('name', 'quantity', 'reorder_level')
+        $role = Auth::user()->role;
+        $query = Supply::whereRaw('quantity <= reorder_level');
+
+        if ($role === 'forms_admin') {
+            $query->where('category', 'Forms');
+        } elseif ($role === 'admin') {
+            $query->where(function($q) {
+                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+            });
+        }
+
+        $criticalItems = $query->select('name', 'quantity', 'reorder_level')
             ->orderBy('quantity', 'asc')
             ->get();
 
@@ -899,13 +963,8 @@ class SupplyController extends Controller
             'items' => $criticalItems
         ]);
     }
-
-    // ==========================================
-    // EXCEL PR GENERATOR
-    // ==========================================
     public function generateCriticalPR()
     {
-        // 1. Get ONLY "Office Supplies" that are at or below reorder level
         $criticalItems = \App\Models\Supply::whereRaw('quantity <= reorder_level')
             ->where('category', 'Office Supplies')
             ->orderBy('name', 'asc')
@@ -917,7 +976,6 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Generated printable Purchase Request for Office Supplies.");
 
-        // 2. Return the printable Blade view
         return view('print_critical_pr', compact('criticalItems'));
     }
 }

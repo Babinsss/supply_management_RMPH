@@ -9,24 +9,23 @@
         </h5>
         
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            {{-- 1. Petty Cash Ledger --}}
-            <a href="/petty-cash" class="btn btn-sm btn-outline-danger btn-modern fw-bold shadow-sm">
-                <i class="bi bi-wallet2 me-1"></i> Petty Cash
-            </a>
+            
+            {{-- Hide Ledgers from Forms Admin --}}
+            @if(auth()->user()->role !== 'forms_admin')
+                <a href="/petty-cash" class="btn btn-sm btn-outline-danger btn-modern fw-bold shadow-sm">
+                    <i class="bi bi-wallet2 me-1"></i> Petty Cash
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
+                    <i class="bi bi-calendar-check me-1"></i> Monthly Report
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" onclick="printDirectly('/print-inventory')">
+                    <i class="bi bi-printer-fill me-1"></i> Print Directory
+                </button>
+            @endif
 
             {{-- 2. Item Usage Report --}}
             <button type="button" class="btn btn-sm btn-outline-info text-body-emphasis btn-modern fw-bold shadow-sm border-info" data-bs-toggle="modal" data-bs-target="#itemUsageModal">
                 <i class="bi bi-graph-up me-1"></i> Item Usage
-            </button>
-
-            {{-- 3. Monthly Report --}}
-            <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#monthlyReportModal">
-                <i class="bi bi-calendar-check me-1"></i> Monthly Report
-            </button>
-
-            {{-- 4. Print Directory (Silent Print) --}}
-            <button type="button" class="btn btn-sm btn-outline-secondary btn-modern fw-bold shadow-sm" onclick="printDirectly('/print-inventory')">
-                <i class="bi bi-printer-fill me-1"></i> Print Directory
             </button>
 
             @if(auth()->user()->role === 'superadmin')
@@ -50,12 +49,10 @@
     {{-- DYNAMIC DATA CALCULATION                   --}}
     {{-- ========================================== --}}
     @php
-        // 1. Total Asset Value
         $totalAssetValue = $supplies->sum(function($item) {
             return $item->quantity * ($item->unit_price ?? 0);
         });
 
-        // 2. Stock Health Logic
         $totalItems = $supplies->count();
         $lowStockCount = 0;
         foreach($supplies as $s) {
@@ -64,17 +61,14 @@
         $goodStockCount = $totalItems - $lowStockCount;
         $healthPercentage = $totalItems > 0 ? round(($goodStockCount / $totalItems) * 100) : 0;
 
-        // 3. Category Distribution
         $categoryData = $supplies->groupBy(function($item) {
             return $item->category ?: 'Uncategorized';
         })->map->count();
         
-        // 4. Fetch master categories EXACTLY ONCE to prevent database lag
         $masterCategories = \Illuminate\Support\Facades\DB::table('categories')->get();
     @endphp
     
     <style>
-        /* Pulse Animation for Critical Stock */
         @keyframes pulse-danger {
             0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
             70% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
@@ -84,7 +78,6 @@
             animation: pulse-danger 2s infinite;
         }
         
-        /* Action Button Consistency */
         .btn-action {
             width: 32px;
             height: 32px;
@@ -102,12 +95,17 @@
             <span class="fw-bold">{{ session('success') }}</span>
         </div>
     @endif
+    @if(session('danger'))
+        <div class="alert alert-danger shadow-sm rounded-4 border-0 mb-4 py-3">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i> 
+            <span class="fw-bold">{{ session('danger') }}</span>
+        </div>
+    @endif
 
     {{-- ========================================== --}}
     {{-- COMMAND CENTER ANALYTICS HEADER            --}}
     {{-- ========================================== --}}
     <div class="row g-4 mb-5">
-        {{-- CARD 1: Total Asset Value --}}
         <div class="col-md-4">
             <div class="bento-card bg-primary bg-opacity-10 border border-primary border-opacity-25 d-flex flex-column justify-content-center h-100">
                 <p class="text-primary fw-bold mb-1 text-uppercase small"><i class="bi bi-cash-stack me-1"></i> Estimated Asset Value</p>
@@ -116,7 +114,6 @@
             </div>
         </div>
         
-        {{-- CARD 2: Stock Health Progress --}}
         <div class="col-md-4">
             <div class="bento-card bg-body-tertiary border border-secondary-subtle d-flex flex-column justify-content-center h-100">
                 <div class="d-flex justify-content-between align-items-center mb-1">
@@ -130,7 +127,6 @@
             </div>
         </div>
 
-        {{-- CARD 3: Top Categories (Lightweight HTML) --}}
         <div class="col-md-4">
             <div class="bento-card bg-body border border-secondary-subtle p-3 h-100 d-flex flex-column justify-content-center">
                 <p class="text-muted fw-bold mb-3 text-uppercase small"><i class="bi bi-tags-fill me-1"></i> Top Categories</p>
@@ -153,7 +149,6 @@
     {{-- ========================================== --}}
     <div class="bento-card bg-body mb-5">
         
-        {{-- DUAL-FILTER HEADER --}}
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h5 class="fw-bolder mb-0 text-body-emphasis"><i class="bi bi-list-columns-reverse text-info me-2"></i> Stock Heatmap</h5>
             
@@ -205,7 +200,6 @@
                                 <span class="fw-bold text-body-emphasis">₱{{ number_format($item->unit_price ?? 0, 2) }}</span>
                             </td>
                             <td>
-                                {{-- HEATMAP LOGIC --}}
                                 @php
                                     $maxVisualStock = $item->reorder_level > 0 ? $item->reorder_level * 3 : 100;
                                     $fillPercentage = $maxVisualStock > 0 ? min(100, ($item->quantity / $maxVisualStock) * 100) : 0;
@@ -232,50 +226,59 @@
                             </td>
                             <td class="text-end">
                                 
-                                {{-- 7-BUTTON ACTION ARRAY (OPTIMIZED WITH ONCLICK) --}}
+                                {{-- 7-BUTTON ACTION ARRAY (ROLE BASED) --}}
                                 <div class="d-flex justify-content-end gap-1 flex-wrap">
-                                    {{-- 1. Visibility --}}
+                                    
+                                    {{-- 1. Visibility (Everyone) --}}
                                     <form action="/inventory/toggle-visibility/{{ $item->id }}" method="POST" class="d-inline m-0">
                                         @csrf
-                                        <button type="submit" 
-                                            class="btn btn-action {{ $item->is_visible ? 'btn-success' : 'btn-outline-secondary' }} shadow-sm" 
-                                            title="{{ $item->is_visible ? 'Hide from Portal' : 'Show in Portal' }}">
+                                        <button type="submit" class="btn btn-action {{ $item->is_visible ? 'btn-success' : 'btn-outline-secondary' }} shadow-sm" title="Toggle Visibility">
                                             <i class="bi {{ $item->is_visible ? 'bi-eye text-white' : 'bi-eye-slash text-muted' }}"></i>
                                         </button>
                                     </form>
 
-                                    {{-- 2. Adjust Stock (SUPERADMIN ONLY) --}}
-                                    @if(auth()->user()->role === 'superadmin')
+                                    {{-- 2. Adjust Stock (Superadmin AND Forms Admin) --}}
+                                    @if(auth()->user()->role === 'superadmin' || auth()->user()->role === 'forms_admin')
                                     <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" onclick="openAdjustModal({{ $item->id }}, '{{ addslashes($item->name) }}', {{ $item->quantity }})" title="Adjust Stock">
                                         <i class="bi bi-sliders"></i>
                                     </button>
                                     @endif
 
-                                    {{-- 3. Stockcard (Teal List) --}}
-                                    <button type="button" onclick="printDirectly('/stockcard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm" style="color: #20c997;" title="Print Stockcard">
-                                        <i class="bi bi-card-list"></i>
-                                    </button>
+                                    {{-- LEDGERS: Hidden from Forms Admin --}}
+                                    @if(auth()->user()->role !== 'forms_admin')
+                                        {{-- 3. Stockcard --}}
+                                        <button type="button" onclick="printDirectly('/stockcard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm" style="color: #20c997;" title="Print Stockcard">
+                                            <i class="bi bi-card-list"></i>
+                                        </button>
 
-                                    {{-- 4. RAPC (Blue Document) --}}
-                                    <button type="button" onclick="printDirectly('/rapc/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-info" title="Print RAPC">
-                                        <i class="bi bi-file-earmark-spreadsheet"></i>
-                                    </button>
+                                        {{-- 4. RAPC --}}
+                                        <button type="button" onclick="printDirectly('/rapc/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-info" title="Print RAPC">
+                                            <i class="bi bi-file-earmark-spreadsheet"></i>
+                                        </button>
 
-                                    {{-- 5. Bincard (Dark Printer) --}}
-                                    <button type="button" onclick="printDirectly('/bincard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-body-emphasis" title="Print Bincard">
-                                        <i class="bi bi-printer"></i>
-                                    </button>
+                                        {{-- 5. Bincard --}}
+                                        <button type="button" onclick="printDirectly('/bincard/{{ $item->id }}')" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-body-emphasis" title="Print Bincard">
+                                            <i class="bi bi-printer"></i>
+                                        </button>
+                                    @endif
 
-                                    {{-- 6. Edit (DYNAMIC TRIGGER) --}}
+                                    {{-- NEW: Quick Monitor (Forms Admin Only) --}}
+                                    @if(auth()->user()->role === 'forms_admin')
+                                        <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" onclick="quickMonitor({{ $item->id }})" title="Monitor Requesting Departments">
+                                            <i class="bi bi-activity"></i>
+                                        </button>
+                                    @endif
+
+                                    {{-- 6. Edit & Archive (Everyone) --}}
                                     <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-primary" onclick="openEditModal({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ $item->category }}', {{ $item->quantity }}, '{{ $item->unit }}', {{ $item->unit_price ?? 0 }}, {{ $item->reorder_level }}, '{{ addslashes($item->supplier) }}', '{{ addslashes($item->ris_number) }}')" title="Edit Item">
                                         <i class="bi bi-pencil-square"></i>
                                     </button>
 
-                                    {{-- 7. Delete (Updated to Archive) --}}
-                                    <a href="/delete/{{ $item->id }}" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-danger" onclick="return confirm('Move this item to the archive? It can be restored later.')" title="Archive Item">
+                                    <a href="/delete/{{ $item->id }}" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-danger" onclick="return confirm('Archive this item?')" title="Archive Item">
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 </div>
+
                             </td>
                         </tr>
                     @empty
@@ -305,7 +308,7 @@
                 </div>
                 <div class="modal-body bg-body-tertiary rounded-4 p-4 mt-3 border border-secondary-subtle">
                     
-                    {{-- The Item Selector --}}
+                    {{-- The Item Selector with RIS support --}}
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold text-uppercase">Select Item <span class="text-danger">*</span></label>
                         <select id="usageItemId" class="form-select input-modern" required>
@@ -346,6 +349,7 @@
     </div>
 
     {{-- MONTHLY REPORT MODAL --}}
+    @if(auth()->user()->role !== 'forms_admin')
     <div class="modal fade" id="monthlyReportModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bento-card p-2 border-0 bg-body">
@@ -387,6 +391,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     @if(auth()->user()->role === 'superadmin')
     {{-- ARCHIVED ITEMS MODAL (Superadmin Only) --}}
@@ -400,7 +405,6 @@
                 <div class="modal-body bg-body-tertiary rounded-4 p-0 mt-2 border border-secondary-subtle overflow-hidden">
                     
                     @php
-                        // Automatically fetches soft-deleted items without needing a controller update
                         $archivedItems = \App\Models\Supply::onlyTrashed()->orderBy('deleted_at', 'desc')->get();
                     @endphp
                     
@@ -426,7 +430,6 @@
                                             {{ \Carbon\Carbon::parse($archive->deleted_at)->format('M d, Y h:i A') }}
                                         </td>
                                         <td class="text-end pe-4">
-                                            {{-- Restore Form targeting the superadmin route --}}
                                             <form action="/superadmin/supply/restore/{{ $archive->id }}" method="POST" class="m-0">
                                                 @csrf
                                                 <button type="submit" class="btn btn-sm btn-success btn-modern shadow-sm fw-bold">
@@ -520,7 +523,7 @@
     </div>
 
     {{-- ========================================== --}}
-    {{-- MASTER MODALS (SINGLE RENDER ARCHITECTURE) --}}
+    {{-- MASTER MODALS                              --}}
     {{-- ========================================== --}}
     
     {{-- MASTER EDIT ITEM MODAL --}}
@@ -629,14 +632,12 @@
     {{-- ========================================== --}}
     <x-slot name="scripts">
         <script>
-            // 1. SKELETON LOADERS
             document.addEventListener('DOMContentLoaded', () => {
                 const rows = document.querySelectorAll('.inv-row td');
                 rows.forEach(cell => cell.classList.add('skeleton'));
                 setTimeout(() => rows.forEach(cell => cell.classList.remove('skeleton')), 450);
             });
 
-            // 2. BULLETPROOF DUAL-FILTER (Search + Category)
             let searchTimeout = null;
             function filterInventory() {
                 let textInput = document.getElementById('inventorySearch').value.toLowerCase().trim();
@@ -669,7 +670,6 @@
                 }, 150); 
             }
             
-            // 3. REPORT PRINTING LOGIC
             function printMonthlyReport() {
                 let month = document.getElementById('reportMonth').value;
                 let year = document.getElementById('reportYear').value;
@@ -693,7 +693,6 @@
                 printDirectly(`/print-item-usage?item_id=${itemId}&month=${month}&year=${year}`);
             }
 
-            // 4. SILENT PRINTING LOGIC (Hidden Iframe)
             function printDirectly(url) {
                 let printFrame = document.getElementById('hiddenPrintFrame') || document.createElement('iframe');
                 if(!printFrame.id) {
@@ -709,7 +708,6 @@
                 };
             }
 
-            // 5. DYNAMIC MODAL TRIGGERS (Replaces the 1000 hidden modals!)
             function openEditModal(id, name, category, qty, unit, price, reorder, supplier, ris_number) {
                 document.getElementById('masterEditForm').action = `/inventory/update/${id}`;
                 
@@ -732,6 +730,12 @@
                 document.getElementById('adjustCurrentQty').value = currentQty;
                 
                 new bootstrap.Modal(document.getElementById('masterAdjustModal')).show();
+            }
+
+            // NEW: Quick Monitor specific to Forms Admin
+            function quickMonitor(id) {
+                document.getElementById('usageItemId').value = id;
+                new bootstrap.Modal(document.getElementById('itemUsageModal')).show();
             }
         </script>
     </x-slot>

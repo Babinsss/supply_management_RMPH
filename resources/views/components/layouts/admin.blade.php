@@ -93,8 +93,10 @@
                 <a href="/" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-grid-fill me-2"></i>Dashboard</a>
                 <a href="/inventory" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-box-seam-fill me-2"></i>Inventory</a>
                 
-                <!-- NEW SHARED ARCHIVES BUTTON -->
-                <a href="/stockcard-archives" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-archive-fill text-warning me-2"></i>Archives</a>
+                <!-- NEW: Hidden from forms_admin -->
+                @if(auth()->check() && auth()->user()->role !== 'forms_admin')
+                    <a href="/stockcard-archives" class="btn btn-light btn-modern shadow-sm border"><i class="bi bi-archive-fill text-warning me-2"></i>Archives</a>
+                @endif
                 
                 <a href="/portal" target="_blank" class="btn btn-dark btn-modern shadow-sm"><i class="bi bi-box-arrow-up-right me-2"></i>Portal</a>
                 

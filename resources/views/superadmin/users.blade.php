@@ -55,6 +55,8 @@
                                     <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-clipboard-check me-1"></i> QMO Approver</span>
                                 @elseif($user->role === 'coh')
                                     <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-hospital me-1"></i> Chief of Hospital</span>
+                                @elseif($user->role === 'forms_admin')
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-3 py-2"><i class="bi bi-file-earmark-text me-1"></i> Forms Admin</span>
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
@@ -113,6 +115,7 @@
                                     <option value="approver" {{ $user->role == 'approver' ? 'selected' : '' }}>QMO Approver</option>
                                     <option value="coh" {{ $user->role == 'coh' ? 'selected' : '' }}>Chief of Hospital (View Only)</option>
                                     <option value="superadmin" {{ $user->role == 'superadmin' ? 'selected' : '' }}>Superadmin</option>
+                                    <option value="forms_admin" {{ $user->role == 'forms_admin' ? 'selected' : '' }}>Forms Admin (Forms Only)</option>
                                 </select>
                             </div>
                             <div class="mb-2">
@@ -158,6 +161,7 @@
                                 <option value="approver">QMO Approver (View Only)</option>
                                 <option value="coh">Chief of Hospital (View Only)</option>
                                 <option value="superadmin">Superadmin (Full System Control)</option>
+                                <option value="forms_admin">Forms Admin (Process Requests, Edit Forms Inventory)</option>
                             </select>
                         </div>
                         <div class="mb-2">
