@@ -52,7 +52,10 @@ class SupplyController extends Controller
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
 
-            $reqsQuery = DepartmentRequest::whereDate('created_at', $date);
+            // FILTER: Exclude system adjustments from the daily request count
+            $reqsQuery = DepartmentRequest::whereDate('created_at', $date)
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
+
             if ($role === 'forms_admin') {
                 $reqsQuery->whereHas('supply', function($q) {
                     $q->where('category', 'Forms');
@@ -66,7 +69,10 @@ class SupplyController extends Controller
         }
 
         // 2. Filter Request Processing Timeline
-        $allRequestsQuery = DepartmentRequest::with(['supply', 'issuer']);
+        // FILTER: Exclude internal system adjustments from the dashboard timeline
+        $allRequestsQuery = DepartmentRequest::with(['supply', 'issuer'])
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+            ->where('batch_id', 'not like', 'ADJ-%');
         
         if ($role === 'forms_admin') {
             $allRequestsQuery->whereHas('supply', function($q) {
@@ -580,8 +586,11 @@ class SupplyController extends Controller
         $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
 
         $fetchTopItems = function ($startDate) {
+            // FILTER: Exclude internal system adjustments from QMO top items aggregation
             $records = DepartmentRequest::where('created_at', '>=', $startDate)
                 ->where('status', 'Approved')
+                ->where('quantity', '>', 0)
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
                 ->selectRaw('supply_id, department_name, SUM(quantity) as total_qty')
                 ->groupBy('supply_id', 'department_name')
                 ->with('supply')
@@ -617,7 +626,10 @@ class SupplyController extends Controller
             return $key === 'All Departments';
         })->sort()->values();
 
+        // FILTER: Exclude internal system adjustments from the QMO timeline
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+            ->where('batch_id', 'not like', 'ADJ-%')
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
