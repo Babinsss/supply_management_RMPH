@@ -27,11 +27,20 @@ Route::middleware(['auth', 'role:admin,superadmin'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| SUPPLY SECTION & FORMS (ADMIN) ROUTES
+| STOCK ADJUSTMENT (Accessible by Superadmin, Forms Admin, & Supply Admin)
 |--------------------------------------------------------------------------
 */
-// NEW: Added forms_admin to this middleware
-Route::middleware(['auth', 'role:admin,forms_admin'])->group(function () {
+Route::middleware(['auth', 'role:superadmin,forms_admin,admin'])->group(function () {
+    Route::post('/inventory/adjust/{id}', [App\Http\Controllers\SupplyController::class, 'adjustStock']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPLY SECTION & FORMS ROUTES
+|--------------------------------------------------------------------------
+*/
+// FIXED: Added 'superadmin' here so you don't get logged out when testing!
+Route::middleware(['auth', 'role:admin,forms_admin,superadmin'])->group(function () {
     Route::get('/', [SupplyController::class, 'index']);
     Route::get('/dashboard', [SupplyController::class, 'dashboard'])->name('dashboard');
     Route::post('/add', [SupplyController::class, 'addItem']);
@@ -44,16 +53,15 @@ Route::middleware(['auth', 'role:admin,forms_admin'])->group(function () {
     Route::get('/inventory', [SupplyController::class, 'inventory']);
     Route::put('/inventory/update/{id}', [SupplyController::class, 'update']);
     Route::post('/inventory/toggle-visibility/{id}', [\App\Http\Controllers\SupplyController::class, 'toggleVisibility']);
+    
+    // Ledgers & Exports
     Route::get('/export-stockcard/{id}', [SupplyController::class, 'exportExcel']);
     Route::get('/export-inventory', [SupplyController::class, 'exportInventoryExcel']);
-
-    // Automated PR Generation
     Route::get('/generate-critical-pr', [SupplyController::class, 'generateCriticalPR']);
-
-    // Print Routes
     Route::get('/bincard/{id}', [SupplyController::class, 'bincard']);
     Route::get('/rapc/{id}', [SupplyController::class, 'rapc']);
 
+    // APIs
     Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
     Route::get('/api/low-stock', [SupplyController::class, 'lowStockApi']);
 });
@@ -87,7 +95,6 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
     Route::get('/master-data/department/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteDepartment']);
     Route::get('/master-data/category/delete/{id}', [App\Http\Controllers\SuperAdminController::class, 'deleteCategory']);
     Route::get('/ris-archive', [App\Http\Controllers\SuperAdminController::class, 'risArchive'])->name('superadmin.ris_archive');
-    Route::post('/inventory/adjust/{id}', [App\Http\Controllers\SupplyController::class, 'adjustStock']);
     
     // RESTORE ROUTE SECURED HERE
     Route::post('/supply/restore/{id}', [App\Http\Controllers\SupplyController::class, 'restoreItem']);

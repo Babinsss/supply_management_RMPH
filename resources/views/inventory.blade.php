@@ -237,8 +237,8 @@
                                         </button>
                                     </form>
 
-                                    {{-- 2. Adjust Stock (Superadmin AND Forms Admin) --}}
-                                    @if(auth()->user()->role === 'superadmin' || auth()->user()->role === 'forms_admin')
+                                    {{-- 2. Adjust Stock (Superadmin, Forms Admin, and Supply Admin) --}}
+                                    @if(in_array(auth()->user()->role, ['superadmin', 'forms_admin', 'admin']))
                                     <button type="button" class="btn btn-action btn-body-tertiary border border-secondary-subtle shadow-sm text-warning" onclick="openAdjustModal({{ $item->id }}, '{{ addslashes($item->name) }}', {{ $item->quantity }})" title="Adjust Stock">
                                         <i class="bi bi-sliders"></i>
                                     </button>

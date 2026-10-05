@@ -238,15 +238,29 @@ class SupplyController extends Controller
         $isEmergency = $batchReqs->first()->is_emergency;
         $batchTime = $batchReqs->first()->created_at;
         
+        // ==========================================
+        // ISOLATED FIFO QUEUE LOGIC (Admins Only)
+        // ==========================================
         if (!$isEmergency) {
-            $olderPendingExists = DepartmentRequest::where('status', 'Pending')
-                ->where('created_at', '<', $batchTime)
-                ->exists();
+            $role = Auth::user()->role;
+            
+            // ONLY enforce strict FIFO for regular Supply Admins (like Michael)
+            if ($role === 'admin') {
+                $olderPendingExists = DepartmentRequest::where('status', 'Pending')
+                    ->where('created_at', '<', $batchTime)
+                    ->where(function($q) {
+                        $q->whereHas('supply', function($subQ) {
+                            $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
+                        })->orWhereDoesntHave('supply'); 
+                    })
+                    ->exists();
 
-            if ($olderPendingExists) {
-                return redirect()->back()->with('danger', "Cannot approve! You must process the oldest pending hospital request first.");
+                if ($olderPendingExists) {
+                    return redirect()->back()->with('danger', "Cannot approve! You must process your oldest pending department request first.");
+                }
             }
         }
+        // ==========================================
 
         foreach ($batchReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
