@@ -67,6 +67,17 @@
             width: 100%; 
             border-collapse: collapse; 
         }
+        
+        /* NEW: Forces the browser to push a row to the next page rather than cutting it in half */
+        tr {
+            page-break-inside: avoid;
+        }
+        
+        /* Ensures the table header repeats automatically on new pages */
+        thead {
+            display: table-header-group;
+        }
+
         th, td { 
             border: 1px solid #000; 
             padding: 6px; 

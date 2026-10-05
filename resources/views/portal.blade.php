@@ -8,8 +8,8 @@
     <link rel="icon" type="image/png" href="{{ asset('images/supply-logo.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/supply-logo.png') }}">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link href="{{ asset('css/bootstrap.min.css') }}" rel="stylesheet">
+<link href="{{ asset('bootstrap-icons/bootstrap-icons.css') }}" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
@@ -340,7 +340,7 @@
     {{-- Hidden Iframe for Petty Cash Printing --}}
     <iframe name="hiddenPettyCashFrame" id="hiddenPettyCashFrame" style="width:0; height:0; border:none; position:absolute;"></iframe>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
     <script>
         const allSupplies = @json($supplies);
         // 1. Initialize cart from browser LocalStorage, or use empty array if new
@@ -529,8 +529,12 @@
                             <span class="fw-bold text-dark lh-sm" style="max-width: 65%; font-size: 0.9rem;">${item.name}</span>
                             <div class="d-flex align-items-center gap-2">
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-2 fs-6 shadow-none">x${item.qty}</span>
-                                <button type="button" class="btn btn-sm btn-light text-danger border-0 rounded-circle" onclick="removeItem(${index})">
-                                    <i class="bi bi-trash3-fill"></i>
+                                
+                                <!-- UPDATED: Solid Red Bulletproof Remove Button -->
+                                <button type="button" class="btn btn-sm btn-danger text-white border-0 shadow-sm fw-bolder d-flex align-items-center justify-content-center" 
+                                        style="width: 28px; height: 28px; font-size: 18px; line-height: 0; padding-bottom: 2px; border-radius: 8px;" 
+                                        onclick="removeItem(${index})" title="Remove item">
+                                    &times;
                                 </button>
                             </div>
                         </div>

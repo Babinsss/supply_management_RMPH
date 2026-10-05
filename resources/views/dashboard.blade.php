@@ -47,7 +47,7 @@
     <div class="bento-card mb-4 p-5">
         <div class="position-relative ms-2 ms-md-4 border-start border-3 border-primary border-opacity-25 pb-4">
             
-            @forelse($requests as$batch)
+            @forelse($requests as $batch)
                 <div class="timeline-node position-relative mb-5 ps-4 ps-md-5">
                     
                     {{-- THE TIMELINE DOT --}}
@@ -64,9 +64,9 @@
                             <p class="text-muted small mb-3"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
                             
                             <div class="d-flex flex-wrap gap-2 mb-3">
-                                @foreach(collect($batch['items'])->take(3) as$req)
+                                @foreach(collect($batch['items'])->take(3) as $req)
                                     <span class="badge bg-body text-body border border-secondary-subtle px-3 py-2 shadow-sm">
-                                        <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{$req->supply->name }}
+                                        <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{ $req->supply?->name ?? 'Deleted/Archived Item' }}
                                     </span>
                                 @endforeach
                                 @if(count($batch['items']) > 3)
@@ -98,7 +98,7 @@
     @endif
 
     {{-- Review Modals --}}
-    @foreach($requests as$batch)
+    @foreach($requests as $batch)
         @if($batch['status'] == 'Pending')
             <div class="modal fade text-start" id="approveModal-{{ $batch['batch_id'] }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
@@ -113,9 +113,10 @@
                                 @php
                                     $hasOutOfStock = false;
                                     $totalFulfillable = 0;
-                                    foreach($batch['items'] as$req) {
-                                        if($req->supply->quantity <= 0)$hasOutOfStock = true;
-                                        $totalFulfillable += min($req->quantity,$req->supply->quantity);
+                                    foreach($batch['items'] as $req) {
+                                        $supplyQty = $req->supply?->quantity ?? 0;
+                                        if($supplyQty <= 0) $hasOutOfStock = true;
+                                        $totalFulfillable += min($req->quantity, $supplyQty);
                                     }
                                 @endphp
 
@@ -127,18 +128,19 @@
                                     <p class="text-muted-soft small mb-4">Adjust quantities before issuing. You cannot exceed stock.</p>
                                 @endif
 
-                                @foreach($batch['items'] as$req)
-                                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-tertiary p-3 rounded-4 border border-secondary-subtle shadow-sm {{ $req->supply->quantity <= 0 ? 'opacity-75' : '' }}">
+                                @foreach($batch['items'] as $req)
+                                @php $supplyQty = $req->supply?->quantity ?? 0; @endphp
+                                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-tertiary p-3 rounded-4 border border-secondary-subtle shadow-sm {{ $supplyQty <= 0 ? 'opacity-75' : '' }}">
                                     <div class="pe-2">
-                                        <div class="fw-bold text-dark fs-6">{{ $req->supply->name }}</div>
+                                        <div class="fw-bold text-dark fs-6">{{ $req->supply?->name ?? 'Deleted/Archived Item' }}</div>
                                         <div class="text-muted-soft small mt-1">
                                             Req: <span class="fw-bold">{{ $req->quantity }}</span> | 
-                                            Stock: <span class="fw-bold {{ $req->supply->quantity <= 0 ? 'text-danger' : 'text-dark' }}">{{ $req->supply->quantity }}</span>
+                                            Stock: <span class="fw-bold {{ $supplyQty <= 0 ? 'text-danger' : 'text-dark' }}">{{ $supplyQty }}</span>
                                         </div>
                                     </div>
                                     <div style="width: 90px; flex-shrink: 0;">
                                         <input type="number" class="input-modern text-center py-2 fw-bolder text-primary" name="qty_{{ $req->id }}" 
-                                               value="{{ min($req->quantity, $req->supply->quantity) }}" min="0" max="{{ min($req->quantity, $req->supply->quantity) }}" {{ $req->supply->quantity <= 0 ? 'readonly' : 'required' }}>
+                                               value="{{ min($req->quantity, $supplyQty) }}" min="0" max="{{ min($req->quantity, $supplyQty) }}" {{ $supplyQty <= 0 ? 'readonly' : 'required' }}>
                                     </div>
                                 </div>
                                 @endforeach
@@ -188,7 +190,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($criticalSupplies as$supply)
+                                @forelse($criticalSupplies as $supply)
                                     <tr class="border-bottom border-secondary-subtle">
                                         <td>
                                             <div class="fw-bold text-body-emphasis">{{ $supply->name }}</div>

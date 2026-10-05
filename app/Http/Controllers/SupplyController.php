@@ -406,20 +406,41 @@ class SupplyController extends Controller
 
     public function printInventory(Request $request)
     {
-        $query = Supply::withSum('departmentRequests', 'quantity');
+        $month = $request->month;
+        $year = $request->year;
 
+        $query = Supply::query();
+
+        // 1. Constrain the SUM to ONLY Approved requests in the specific month/year
+        $query->withSum(['departmentRequests' => function ($q) use ($month, $year) {
+            $q->where('status', 'Approved')
+              ->where('quantity', '>', 0);
+              
+            if ($month && $year) {
+                $q->whereMonth('created_at', $month)
+                  ->whereYear('created_at', $year);
+            }
+        }], 'quantity');
+
+        // 2. NEW POLICY: ONLY fetch items that have at least one approved issuance in this timeframe!
+        $query->whereHas('departmentRequests', function ($q) use ($month, $year) {
+            $q->where('status', 'Approved')
+              ->where('quantity', '>', 0);
+              
+            if ($month && $year) {
+                $q->whereMonth('created_at', $month)
+                  ->whereYear('created_at', $year);
+            }
+        });
+
+        // 3. Filter by category if selected
         if ($request->has('category') && $request->category !== 'ALL') {
             $query->where('category', $request->category);
         }
 
-        if ($request->has('month') && $request->has('year')) {
-            $query->whereMonth('created_at', $request->month)
-                  ->whereYear('created_at', $request->year);
-        }
-
         $supplies = $query->orderBy('name', 'asc')->get();
-        $reportMonth = $request->month ? Carbon::createFromFormat('m', $request->month)->format('F') : null;
-        $reportYear = $request->year;
+        $reportMonth = $month ? \Carbon\Carbon::createFromFormat('m', $month)->format('F') : null;
+        $reportYear = $year;
         $reportCategory = $request->category;
 
         return view('print_inventory', compact('supplies', 'reportMonth', 'reportYear', 'reportCategory'));
@@ -761,46 +782,83 @@ class SupplyController extends Controller
     public function adjustStock(Request $request, $id)
     {
         $request->validate([
-            'action' => 'required|in:add,subtract',
-            'quantity' => 'required|integer|min:1',
-            'reason' => 'required|string|max:255'
+            'adjustment' => 'required|integer',
+            'remarks' => 'required|string|max:255'
         ]);
 
-        $item = Supply::findOrFail($id);
-        $qty = (int) $request->input('quantity');
-        $action = $request->input('action');
-        $reason = strtoupper($request->input('reason'));
+        $clickedItem = Supply::findOrFail($id);
+        $adjustment = (int) $request->input('adjustment');
+        $reason = strtoupper($request->input('remarks'));
 
-        if ($action === 'subtract') {
-            if ($item->quantity < $qty) {
-                return redirect()->back()->with('danger', 'Cannot deduct more than the current stock available!');
-            }
+        if ($adjustment == 0) {
+            return redirect()->back()->with('danger', 'Adjustment amount cannot be zero.');
+        }
+
+        $matchingSupplies = Supply::where('name', $clickedItem->name)->orderBy('id', 'asc')->get();
+        $batchId = 'ADJ-' . strtoupper(\Illuminate\Support\Str::random(5));
+
+        if ($adjustment > 0) {
+            // Addition: Add straight to the specific item they clicked
+            $clickedItem->quantity += $adjustment;
+            $clickedItem->save();
             
-            $item->quantity -= $qty;
-            
+            // NEW FIX: Log this as a negative issue so the "Reverse Math" protects previous months!
+            // We use a negative quantity to represent items COMING IN to the inventory ledger.
             \App\Models\DepartmentRequest::create([
-                'batch_id' => 'ADJ-' . strtoupper(\Illuminate\Support\Str::random(5)),
-                'department_name' => 'SYSTEM ADJUSTMENT',
+                'batch_id' => $batchId,
+                'department_name' => 'SYSTEM RESTOCK',
                 'requested_by' => $reason,
-                'supply_id' => $item->id,
-                'quantity' => $qty,
-                'purpose' => 'Superadmin correction',
+                'supply_id' => $clickedItem->id,
+                'quantity' => -$adjustment, 
+                'purpose' => 'Positive Stock Adjustment',
                 'status' => 'Approved',
                 'issued_by' => \Illuminate\Support\Facades\Auth::id(),
             ]);
+
+            \App\Models\ActivityLog::log('Inventory', "Adjusted stock UP for {$clickedItem->name} by {$adjustment}. Reason: {$reason}");
+        } 
+        else {
+            // Deduction: Deduct across the combined pool of all items with this exact name
+            $deductAmount = abs($adjustment);
+            $totalCombinedStock = $matchingSupplies->sum('quantity');
+
+            if ($totalCombinedStock < $deductAmount) {
+                return redirect()->back()->with('danger', "Cannot deduct {$deductAmount}. Total combined stock for '{$clickedItem->name}' across all entries is only {$totalCombinedStock}!");
+            }
+
+            $remainingToDeduct = $deductAmount;
+
+            foreach ($matchingSupplies as $supply) {
+                if ($remainingToDeduct <= 0) break;
+
+                if ($supply->quantity > 0) {
+                    $deductedFromThis = min($supply->quantity, $remainingToDeduct);
+                    
+                    $supply->quantity -= $deductedFromThis;
+                    $supply->save();
+
+                    // Log the deduction securely for the ledger
+                    \App\Models\DepartmentRequest::create([
+                        'batch_id' => $batchId,
+                        'department_name' => 'SYSTEM ADJUSTMENT',
+                        'requested_by' => $reason,
+                        'supply_id' => $supply->id,
+                        'quantity' => $deductedFromThis,
+                        'purpose' => 'Combined Stock Deduction',
+                        'status' => 'Approved',
+                        'issued_by' => \Illuminate\Support\Facades\Auth::id(),
+                    ]);
+
+                    $remainingToDeduct -= $deductedFromThis;
+                }
+            }
             
-            \App\Models\ActivityLog::log('Inventory', "Adjusted stock DOWN for {$item->name} by {$qty}. Reason: {$reason}");
-            
-        } else {
-            $item->quantity += $qty;
-            \App\Models\ActivityLog::log('Inventory', "Adjusted stock UP for {$item->name} by {$qty}. Reason: {$reason}");
+            \App\Models\ActivityLog::log('Inventory', "Adjusted combined stock DOWN for {$clickedItem->name} by {$deductAmount}. Reason: {$reason}");
         }
 
-        $item->save();
-
         return redirect()->back()
-            ->with('success', "Stock successfully adjusted for {$item->name}!")
-            ->with('active_category', $item->category);
+            ->with('success', "Stock successfully adjusted for {$clickedItem->name}!")
+            ->with('active_category', $clickedItem->category);
     }
 
     public function printItemUsage(Request $request)

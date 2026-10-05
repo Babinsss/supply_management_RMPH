@@ -311,7 +311,11 @@
                         <select id="usageItemId" class="form-select input-modern" required>
                             <option value="" disabled selected>Choose an item...</option>
                             @foreach($supplies as $item)
-                                <option value="{{ $item->id }}">{{ $item->name }}</option>
+                                <option value="{{ $item->id }}">
+                                    {{ $item->name }} 
+                                    @if($item->ris_number) (RIS: {{ $item->ris_number }}) @endif
+                                    @if($item->supplier) - {{ $item->supplier }} @endif
+                                </option>
                             @endforeach
                         </select>
                     </div>
