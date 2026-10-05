@@ -146,7 +146,7 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
-        return redirect()->back()
+        return redirect('/inventory')
             ->with('success', 'New item added successfully!')
             ->with('active_category', $newItem->category);
     }
@@ -191,7 +191,7 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', $logMessage);
 
-        return redirect()->back()
+        return redirect('/inventory')
             ->with('success', "Item details updated successfully for {$item->name}!")
             ->with('active_category', $item->category);
     }
@@ -204,7 +204,7 @@ class SupplyController extends Controller
 
         \App\Models\ActivityLog::log('Inventory', "Deleted item from inventory: {$itemName}");
 
-        return redirect()->route('dashboard')->with('success', 'Item successfully deleted.');
+        return redirect('/inventory')->with('success', 'Item successfully archived.');
     }
 
     public function restoreItem($id)
@@ -721,14 +721,16 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         
-        // FIX: Change '>' to '!=' so it includes the negative adjustments
+        // Reverted to > 0 so adjustments are hidden from the transaction list
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
-            ->where('quantity', '!=', 0) 
+            ->where('quantity', '>', 0) 
             ->orderBy('updated_at', 'asc')
             ->get();
 
         $totalIssued = $releases->sum('quantity');
+        
+        // This math magically absorbs the hidden adjustments into the top row!
         $startingBalance = $item->quantity + $totalIssued;
 
         $transactions = collect();
@@ -742,27 +744,14 @@ class SupplyController extends Controller
 
         $currentBalance = $startingBalance;
         foreach ($releases as $release) {
-            $currentBalance -= $release->quantity; // Subtracting a negative adds it to the balance
-            
-            if ($release->quantity < 0) {
-                // It is a positive adjustment / restock! Put it in the Delivery column.
-                $transactions->push([
-                    'date' => $release->updated_at,
-                    'department' => $release->department_name,
-                    'delivery_qty' => abs($release->quantity), // Make it a positive number visually
-                    'qty_issued' => '',
-                    'balance' => $currentBalance
-                ]);
-            } else {
-                // Standard issue to a department
-                $transactions->push([
-                    'date' => $release->updated_at,
-                    'department' => $release->department_name,
-                    'delivery_qty' => '',
-                    'qty_issued' => $release->quantity,
-                    'balance' => $currentBalance
-                ]);
-            }
+            $currentBalance -= $release->quantity;
+            $transactions->push([
+                'date' => $release->updated_at,
+                'department' => $release->department_name,
+                'delivery_qty' => '',
+                'qty_issued' => $release->quantity,
+                'balance' => $currentBalance
+            ]);
         }
 
         return view('bincard', compact('item', 'transactions'));
@@ -787,7 +776,7 @@ class SupplyController extends Controller
         foreach ($items as $item) {
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '!=', 0) // <--- Now allows reverse math restocks!
+                ->where('quantity', '>', 0) // <--- Reverted back to > 0
                 ->whereYear('updated_at', $currentYear)
                 ->get();
 
@@ -910,7 +899,7 @@ class SupplyController extends Controller
             \App\Models\ActivityLog::log('Inventory', "Adjusted combined stock DOWN for {$clickedItem->name} by {$deductAmount}. Reason: {$reason}");
         }
 
-        return redirect()->back()
+        return redirect('/inventory')
             ->with('success', "Stock successfully adjusted for {$clickedItem->name}!")
             ->with('active_category', $clickedItem->category);
     }
