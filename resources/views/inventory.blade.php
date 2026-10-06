@@ -724,7 +724,8 @@
             }
 
             function openAdjustModal(id, name, currentQty) {
-                document.getElementById('masterAdjustForm').action = `/superadmin/inventory/adjust/${id}`;
+                // Removed /superadmin so it matches our new route!
+                document.getElementById('masterAdjustForm').action = `/inventory/adjust/${id}`;
                 
                 document.getElementById('adjustItemName').innerText = name;
                 document.getElementById('adjustCurrentQty').value = currentQty;
