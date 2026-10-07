@@ -468,6 +468,7 @@ class SupplyController extends Controller
         $query = Supply::query();
 
         // 1. Constrain the SUM to ONLY Approved requests in the specific month/year
+        // We leave > 0 here so System Adjustments don't ruin the "Total Issued" column on your printed report
         $query->withSum(['departmentRequests' => function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
               ->where('quantity', '>', 0);
@@ -491,20 +492,38 @@ class SupplyController extends Controller
 
         // 3. SMART CATEGORY & ROLE FILTERING
         if ($role === 'forms_admin') {
-            // Syrone is strictly locked to only printing Forms
             $query->where('category', 'Forms');
         } elseif ($request->has('category') && $request->category !== 'ALL') {
-            // If an Admin/Superadmin specifically selected a category, show only that category
             $query->where('category', $request->category);
         } else {
-            // If an Admin/Superadmin selected "ALL Categories", exclude 'Forms' to save paper 
-            // and keep the general medical/office supplies report clean!
             $query->where(function($q) {
                 $q->where('category', '!=', 'Forms')->orWhereNull('category');
             });
         }
 
         $supplies = $query->orderBy('name', 'asc')->get();
+
+        // ==========================================
+        // 4. REVERSE MATH: THE "TIME MACHINE"
+        // ==========================================
+        if ($month && $year) {
+            // Find the exact last day of the month they are printing
+            $endOfMonth = \Carbon\Carbon::createFromDate($year, $month, 1)->endOfMonth();
+            
+            foreach ($supplies as $supply) {
+                // Find all issues AND system adjustments that happened AFTER this month ended
+                $futureTransactions = \App\Models\DepartmentRequest::where('supply_id', $supply->id)
+                    ->where('status', 'Approved')
+                    ->where('quantity', '!=', 0) // != 0 forces it to calculate your October adjustments!
+                    ->where('created_at', '>', $endOfMonth)
+                    ->sum('quantity');
+
+                // Rewind the live stock back to what it exactly was on the last day of the selected month
+                $supply->quantity = $supply->quantity + $futureTransactions;
+            }
+        }
+        // ==========================================
+
         $reportMonth = $month ? \Carbon\Carbon::createFromFormat('m', $month)->format('F') : null;
         $reportYear = $year;
         $reportCategory = $request->category;
