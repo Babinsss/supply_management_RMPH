@@ -8,6 +8,7 @@ use App\Models\DepartmentRequest;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -23,15 +24,15 @@ class SupplyController extends Controller
 
    public function dashboard()
     {
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
         
         $supplyQuery = Supply::query();
 
         if ($role === 'forms_admin') {
-            $supplyQuery->where('category', 'Forms');
+            $supplyQuery->where('category', 'like', '%Form%');
         } elseif ($role === 'admin') {
             $supplyQuery->where(function($q) {
-                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+                $q->where('category', 'not like', '%Form%')->orWhereNull('category');
             });
         }
 
@@ -52,45 +53,43 @@ class SupplyController extends Controller
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
-            $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
-
             $reqsQuery = DepartmentRequest::whereDate('created_at', $date)
                 ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
 
             if ($role === 'forms_admin') {
                 $reqsQuery->whereHas('supply', function($q) {
-                    $q->where('category', 'Forms');
+                    $q->where('category', 'LIKE', '%form%');
                 });
             } elseif ($role === 'admin') {
-                $reqsQuery->whereDoesntHave('supply', function($q) {
-                    $q->where('category', 'Forms');
+                $reqsQuery->where(function($q) {
+                    $q->whereHas('supply', function($subQ) {
+                        $subQ->where('category', 'NOT LIKE', '%form%')->orWhereNull('category');
+                    })->orWhereDoesntHave('supply');
                 });
             }
+            
+            $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
             $chartData[] = $reqsQuery->distinct('batch_id')->count('batch_id');
         }
 
-        $allRequestsQuery = DepartmentRequest::with(['supply', 'issuer'])
+        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
-            ->where('batch_id', 'not like', 'ADJ-%');
-        
-        if ($role === 'forms_admin') {
-            $allRequestsQuery->whereHas('supply', function($q) {
-                $q->where('category', 'Forms');
-            });
-        } elseif ($role === 'admin') {
-            $allRequestsQuery->whereDoesntHave('supply', function($q) {
-                $q->where('category', 'Forms');
-            });
-        }
-
-        $allRequests = $allRequestsQuery
+            ->where('batch_id', 'not like', 'ADJ-%')
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
             ->get();
-
+        
         $groupedBatches = [];
+        
         foreach ($allRequests as $req) {
+            // PROVEN SPLITTER: Explicit uppercase check guarantees no typos
+            $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+            $isForm = (strpos($cat, 'FORM') !== false);
+            
+            if ($role === 'forms_admin' && !$isForm) continue;
+            if ($role === 'admin' && $isForm) continue;
+
             if (!isset($groupedBatches[$req->batch_id])) {
                 $groupedBatches[$req->batch_id] = [
                     'batch_id' => $req->batch_id,
@@ -104,10 +103,22 @@ class SupplyController extends Controller
             $groupedBatches[$req->batch_id]['items'][] = $req;
         }
 
+        foreach ($groupedBatches as $key => $batch) {
+            $hasPending = false;
+            foreach ($batch['items'] as $item) {
+                if ($item->status === 'Pending') {
+                    $hasPending = true;
+                    break;
+                }
+            }
+            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : 'Processed';
+        }
+
         $requestsToDisplay = array_values($groupedBatches);
         $pendingCount = collect($requestsToDisplay)->where('status', 'Pending')->count();
         
-        $perPage = 10;
+        // BUG FIX: Increased pagination to 50 so new requests don't vanish onto Page 2!
+        $perPage = 50; 
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $currentItems = array_slice($requestsToDisplay, ($currentPage - 1) * $perPage, $perPage);
         
@@ -230,53 +241,57 @@ class SupplyController extends Controller
 
     public function approveBatch(Request $request, $batch_id)
     {
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
         
-        $query = DepartmentRequest::where('batch_id', $batch_id);
+        $allReqs = DepartmentRequest::with('supply')->where('batch_id', $batch_id)->get();
+        $batchReqs = collect();
 
-        if ($role === 'forms_admin') {
-            $query->whereHas('supply', function($q) {
-                $q->where('category', 'Forms');
-            });
-        } elseif ($role === 'admin') {
-            $query->where(function($q) {
-                $q->whereHas('supply', function($subQ) {
-                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
-                })->orWhereDoesntHave('supply');
-            });
+        foreach ($allReqs as $req) {
+            $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+            $isForm = (strpos($cat, 'FORM') !== false);
+            
+            if ($role === 'forms_admin' && $isForm) $batchReqs->push($req);
+            if ($role === 'admin' && !$isForm) $batchReqs->push($req);
         }
-
-        $batchReqs = $query->get();
 
         if ($batchReqs->isEmpty()) {
             return redirect()->back()->with('danger', 'No authorized items found for approval in this request.');
         }
 
-        if ($batchReqs->first()->status !== 'Pending') {
-            return redirect()->back()->with('warning', 'These specific items have already been processed.');
+        $pendingReqs = $batchReqs->where('status', 'Pending');
+        
+        if ($pendingReqs->isEmpty()) {
+            return redirect()->back()->with('danger', 'These specific items have already been processed.');
         }
 
-        $isEmergency = $batchReqs->first()->is_emergency;
-        $batchTime = $batchReqs->first()->created_at;
+        $isEmergency = $pendingReqs->first()->is_emergency;
+        $batchTime = $pendingReqs->first()->created_at;
         
-        if (!$isEmergency) {
-            if ($role === 'admin') {
-                $olderPendingExists = DepartmentRequest::where('status', 'Pending')
-                    ->where('created_at', '<', $batchTime)
-                    ->where(function($q) {
-                        $q->whereHas('supply', function($subQ) {
-                            $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
-                        })->orWhereDoesntHave('supply'); 
-                    })
-                    ->exists();
-
-                if ($olderPendingExists) {
-                    return redirect()->back()->with('danger', "Cannot approve! You must process your oldest pending department request first.");
+        if (!$isEmergency && $role === 'admin') {
+            $allPending = DepartmentRequest::with('supply')
+                ->where('status', 'Pending')
+                ->where('created_at', '<', $batchTime)
+                ->orderBy('created_at', 'asc')
+                ->get();
+                
+            $blockingReq = null;
+            foreach ($allPending as $req) {
+                $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+                $isForm = (strpos($cat, 'FORM') !== false);
+                
+                if (!$isForm) {
+                    $blockingReq = $req;
+                    break;
                 }
+            }
+
+            if ($blockingReq) {
+                $oldestTime = \Carbon\Carbon::parse($blockingReq->created_at)->format('h:i A');
+                return redirect()->back()->with('danger', "Strict FIFO Active: You cannot process this yet! You must first process your older pending request from {$blockingReq->department_name} submitted at {$oldestTime}.");
             }
         }
 
-        foreach ($batchReqs as $req) {
+        foreach ($pendingReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
             if ($adjQty !== null) {
                 $req->quantity = (int)$adjQty;
@@ -284,7 +299,7 @@ class SupplyController extends Controller
         }
 
         $supplySums = [];
-        foreach ($batchReqs as $req) {
+        foreach ($pendingReqs as $req) {
             $name = $req->supply->name;
             if (!isset($supplySums[$name])) {
                 $supplySums[$name] = 0;
@@ -299,10 +314,22 @@ class SupplyController extends Controller
             }
         }
         
-        \Illuminate\Support\Facades\DB::transaction(function () use ($batchReqs) {
-            foreach ($batchReqs as $req) {
-                $itemName = $req->supply->name;
+        DB::transaction(function () use ($pendingReqs) {
+            foreach ($pendingReqs as $req) {
                 $remainingToDeduct = $req->quantity;
+                
+                if ($remainingToDeduct <= 0) {
+                    if (!empty($req->id)) {
+                        DB::table('department_requests')->where('id', $req->id)->update([
+                            'status' => 'Denied',
+                            'quantity' => 0,
+                            'updated_at' => now()
+                        ]);
+                    }
+                    continue; 
+                }
+                
+                $itemName = $req->supply->name;
                 
                 $matchingSupplies = Supply::where('name', $itemName)
                     ->where('quantity', '>', 0)
@@ -319,19 +346,30 @@ class SupplyController extends Controller
                     $supply->save();
                     
                     if ($firstMatch) {
-                        $req->supply_id = $supply->id;
-                        $req->quantity = $deductAmount;
-                        $req->status = 'Approved';
-                        $req->issued_by = Auth::id();
-                        $req->save();
+                        if (!empty($req->id)) {
+                            DB::table('department_requests')->where('id', $req->id)->update([
+                                'supply_id' => $supply->id,
+                                'quantity' => $deductAmount,
+                                'status' => 'Approved',
+                                'issued_by' => Auth::id(),
+                                'updated_at' => now()
+                            ]);
+                        }
                         $firstMatch = false;
                     } else {
-                        $newReq = $req->replicate();
-                        $newReq->supply_id = $supply->id;
-                        $newReq->quantity = $deductAmount;
-                        $newReq->status = 'Approved';
-                        $newReq->issued_by = Auth::id();
-                        $newReq->save();
+                        DepartmentRequest::create([
+                            'batch_id' => $req->batch_id,
+                            'department_name' => $req->department_name,
+                            'requested_by' => $req->requested_by,
+                            'supply_id' => $supply->id,
+                            'quantity' => $deductAmount,
+                            'purpose' => $req->purpose,
+                            'is_emergency' => $req->is_emergency,
+                            'status' => 'Approved',
+                            'issued_by' => Auth::id(),
+                            'created_at' => $req->created_at,
+                            'updated_at' => now()
+                        ]);
                     }
                     
                     $remainingToDeduct -= $deductAmount;
@@ -339,7 +377,7 @@ class SupplyController extends Controller
             }
         });
 
-        $departmentName = $batchReqs->first()->department_name;
+        $departmentName = $pendingReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
 
         return redirect()->back()->with('success', 'Your department items in this request were approved!');
@@ -347,27 +385,26 @@ class SupplyController extends Controller
 
     public function denyBatch($batch_id)
     {
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
         
-        $query = DepartmentRequest::where('batch_id', $batch_id);
+        $allReqs = DepartmentRequest::with('supply')->where('batch_id', $batch_id)->get();
+        $batchReqs = collect();
 
-        if ($role === 'forms_admin') {
-            $query->whereHas('supply', function($q) {
-                $q->where('category', 'Forms');
-            });
-        } elseif ($role === 'admin') {
-            $query->where(function($q) {
-                $q->whereHas('supply', function($subQ) {
-                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
-                })->orWhereDoesntHave('supply');
-            });
+        foreach ($allReqs as $req) {
+            $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+            $isForm = (strpos($cat, 'FORM') !== false);
+            
+            if ($role === 'forms_admin' && $isForm) $batchReqs->push($req);
+            if ($role === 'admin' && !$isForm) $batchReqs->push($req);
         }
 
-        $batchReqs = $query->get();
-
         foreach ($batchReqs as $req) {
-            $req->status = 'Denied';
-            $req->save();
+            if (!empty($req->id)) {
+                DB::table('department_requests')->where('id', $req->id)->update([
+                    'status' => 'Denied',
+                    'updated_at' => now()
+                ]);
+            }
         }
 
         if ($batchReqs->isNotEmpty()) {
@@ -483,35 +520,38 @@ class SupplyController extends Controller
 
     public function pendingCountApi()
     {
-        $role = Auth::user()->role;
-        $reqsQuery = DepartmentRequest::where('status', 'Pending');
+        $role = strtolower(trim(Auth::user()->role));
+        $allPending = DepartmentRequest::with('supply')->where('status', 'Pending')->get();
         
-        if ($role === 'forms_admin') {
-            $reqsQuery->whereHas('supply', function($q) {
-                $q->where('category', 'Forms');
-            });
-        } elseif ($role === 'admin') {
-            $reqsQuery->where(function($q) {
-                $q->whereHas('supply', function($subQ) {
-                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
-                })->orWhereDoesntHave('supply');
-            });
+        $countedBatches = [];
+        $count = 0;
+        
+        foreach ($allPending as $req) {
+            $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+            $isForm = (strpos($cat, 'FORM') !== false);
+            
+            if ($role === 'forms_admin' && !$isForm) continue;
+            if ($role === 'admin' && $isForm) continue;
+            
+            if (!in_array($req->batch_id, $countedBatches)) {
+                $countedBatches[] = $req->batch_id;
+                $count++;
+            }
         }
         
-        $pendingCount = $reqsQuery->distinct('batch_id')->count('batch_id');
-        return response()->json(['count' => $pendingCount]);
+        return response()->json(['count' => $count]);
     }
     
     public function inventory() 
     {
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
         $query = Supply::orderBy('name', 'asc');
         
         if ($role === 'forms_admin') {
-            $query->where('category', 'Forms');
+            $query->where('category', 'like', '%Form%');
         } elseif ($role === 'admin') {
             $query->where(function($q) {
-                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+                $q->where('category', 'not like', '%Form%')->orWhereNull('category');
             });
         }
 
@@ -531,7 +571,7 @@ class SupplyController extends Controller
     {
         $month = $request->month;
         $year = $request->year;
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
 
         $query = Supply::query();
 
@@ -558,12 +598,12 @@ class SupplyController extends Controller
         });
 
         if ($role === 'forms_admin') {
-            $query->where('category', 'Forms');
+            $query->where('category', 'like', '%Form%');
         } elseif ($request->has('category') && $request->category !== 'ALL') {
             $query->where('category', $request->category);
         } else {
             $query->where(function($q) {
-                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+                $q->where('category', 'not like', '%Form%')->orWhereNull('category');
             });
         }
 
@@ -584,17 +624,11 @@ class SupplyController extends Controller
             }
         }
         
-        // ==========================================
-        // VIRTUAL GROUPING: Print Inventory consolidation
-        // ==========================================
         $supplies = $supplies->groupBy('name')->map(function ($group) {
             $first = $group->first();
             $first->quantity = $group->sum('quantity');
             $first->department_requests_sum_quantity = $group->sum('department_requests_sum_quantity');
-            
-            // Calculate Beginning Balance
             $first->beginning_balance = $first->quantity + (int)$first->department_requests_sum_quantity;
-            
             $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
             return $first;
         })->values();
@@ -689,6 +723,7 @@ class SupplyController extends Controller
     
     public function approverDashboard()
     {
+        $role = strtolower(trim(Auth::user()->role));
         $groupedAll = Supply::all()->groupBy('name')->map(function($g) {
             $first = $g->first();
             $first->quantity = $g->sum('quantity');
@@ -743,20 +778,43 @@ class SupplyController extends Controller
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
             ->get();
-        
-        $requestsCollection = collect($allRequests)->groupBy('batch_id')->map(function ($items, $batchId) {
-            return [
-                'batch_id' => $batchId,
-                'created_at' => $items->first()->created_at,
-                'department_name' => $items->first()->department_name,
-                'requested_by' => $items->first()->requested_by,
-                'status' => $items->first()->status,
-                'items' => $items
-            ];
-        })->values();
+            
+        $groupedBatches = [];
+        foreach ($allRequests as $req) {
+            $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
+            $isForm = (strpos($cat, 'FORM') !== false);
+            
+            if ($role === 'forms_admin' && !$isForm) continue;
+            if ($role === 'admin' && $isForm) continue;
+
+            if (!isset($groupedBatches[$req->batch_id])) {
+                $groupedBatches[$req->batch_id] = [
+                    'batch_id' => $req->batch_id,
+                    'created_at' => $req->created_at,
+                    'department_name' => $req->department_name,
+                    'requested_by' => $req->requested_by,
+                    'status' => $req->status,
+                    'items' => []
+                ];
+            }
+            $groupedBatches[$req->batch_id]['items'][] = $req;
+        }
+
+        foreach ($groupedBatches as $key => $batch) {
+            $hasPending = false;
+            foreach ($batch['items'] as $item) {
+                if ($item->status === 'Pending') {
+                    $hasPending = true;
+                    break;
+                }
+            }
+            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : 'Processed';
+        }
+
+        $requestsCollection = collect(array_values($groupedBatches));
 
         $pending_count = $requestsCollection->where('status', 'Pending')->count();
-        $perPage = 10;
+        $perPage = 50;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $currentItems = $requestsCollection->slice(($currentPage - 1) * $perPage, $perPage)->all();
         
@@ -1081,14 +1139,14 @@ class SupplyController extends Controller
 
     public function lowStockApi()
     {
-        $role = Auth::user()->role;
+        $role = strtolower(trim(Auth::user()->role));
         $query = Supply::whereRaw('quantity <= reorder_level');
 
         if ($role === 'forms_admin') {
-            $query->where('category', 'Forms');
+            $query->where('category', 'like', '%Form%');
         } elseif ($role === 'admin') {
             $query->where(function($q) {
-                $q->where('category', '!=', 'Forms')->orWhereNull('category');
+                $q->where('category', 'not like', '%Form%')->orWhereNull('category');
             });
         }
 
