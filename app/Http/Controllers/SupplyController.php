@@ -431,8 +431,10 @@ class SupplyController extends Controller
                 $q->where('category', 'Forms');
             });
         } elseif ($role === 'admin') {
-            $reqsQuery->whereDoesntHave('supply', function($q) {
-                $q->where('category', 'Forms');
+            $reqsQuery->where(function($q) {
+                $q->whereHas('supply', function($subQ) {
+                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
+                })->orWhereDoesntHave('supply');
             });
         }
         
@@ -468,10 +470,11 @@ class SupplyController extends Controller
         $query = Supply::query();
 
         // 1. Constrain the SUM to ONLY Approved requests in the specific month/year
-        // We leave > 0 here so System Adjustments don't ruin the "Total Issued" column on your printed report
+        // FIXED: Now specifically excludes adjustments so they don't inflate the "Total Issued" count
         $query->withSum(['departmentRequests' => function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
-              ->where('quantity', '>', 0);
+              ->where('quantity', '>', 0)
+              ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
               
             if ($month && $year) {
                 $q->whereMonth('created_at', $month)
@@ -479,10 +482,11 @@ class SupplyController extends Controller
             }
         }], 'quantity');
 
-        // 2. ONLY fetch items that have at least one approved issuance in this timeframe
+        // 2. ONLY fetch items that have at least one normal approved issuance in this timeframe
         $query->whereHas('departmentRequests', function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
-              ->where('quantity', '>', 0);
+              ->where('quantity', '>', 0)
+              ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
               
             if ($month && $year) {
                 $q->whereMonth('created_at', $month)
@@ -507,18 +511,17 @@ class SupplyController extends Controller
         // 4. REVERSE MATH: THE "TIME MACHINE"
         // ==========================================
         if ($month && $year) {
-            // Find the exact last day of the month they are printing
             $endOfMonth = \Carbon\Carbon::createFromDate($year, $month, 1)->endOfMonth();
             
             foreach ($supplies as $supply) {
-                // Find all issues AND system adjustments that happened AFTER this month ended
+                // EXCLUSION: Normal issues only to perfectly reverse the math
                 $futureTransactions = \App\Models\DepartmentRequest::where('supply_id', $supply->id)
                     ->where('status', 'Approved')
-                    ->where('quantity', '!=', 0) // != 0 forces it to calculate your October adjustments!
+                    ->where('quantity', '>', 0) 
+                    ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
                     ->where('created_at', '>', $endOfMonth)
                     ->sum('quantity');
 
-                // Rewind the live stock back to what it exactly was on the last day of the selected month
                 $supply->quantity = $supply->quantity + $futureTransactions;
             }
         }
@@ -536,9 +539,11 @@ class SupplyController extends Controller
         $item = Supply::findOrFail($id);
         $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
         
+        // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
         $releases = DepartmentRequest::where('supply_id', $id)
             ->where('status', 'Approved')
-            ->where('quantity', '>', 0)
+            ->where('quantity', '>', 0) 
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
             ->orderBy('created_at', 'asc')
             ->get();
             
@@ -553,12 +558,17 @@ class SupplyController extends Controller
         ];
         $columns = ['Date', 'Reference', 'Department', 'Requested By', 'Qty Issued', 'Running Balance'];
 
-        $callback = function () use ($releases, $columns) {
+        $callback = function () use ($releases, $columns, $item) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
-            $balance = 0; 
+            
+            // Calculates accurate starting balance instead of 0
+            $totalIssued = $releases->sum('quantity');
+            $balance = $item->quantity + $totalIssued;
+            
             foreach ($releases as $release) {
                 $balance -= $release->quantity; 
+                
                 fputcsv($file, [
                     Carbon::parse($release->created_at)->format('m/d/Y'),
                     strtoupper(substr($release->batch_id, 0, 8)),
@@ -709,18 +719,22 @@ class SupplyController extends Controller
         $cardsData = [];
 
         foreach ($matchingSupplies as $supply) {
+            // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
                 ->whereMonth('created_at', $month_filter)
                 ->whereYear('created_at', $year_filter)
                 ->orderBy('created_at', 'asc')
                 ->orderBy('id', 'asc') 
                 ->get();
 
+            // TOTAL ABSORPTION: Only reverse calculate normal issues
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
                 ->where('created_at', '>=', $year_filter . '-' . $month_filter . '-01 00:00:00')
                 ->sum('quantity');
 
@@ -731,7 +745,7 @@ class SupplyController extends Controller
             foreach ($releasesAsc as $release) {
                 $tempBalance -= $release->quantity;
                 $release->running_balance = $tempBalance;
-                $formattedReleases->push($release);
+                $formattedReleases->push($release); // Filter is gone because query handles it securely
             }
             
             if ($supply->quantity == 0 && $balance_forwarded == 0 && $formattedReleases->isEmpty()) {
@@ -762,20 +776,22 @@ class SupplyController extends Controller
 
         return redirect()->back()->with('success', "Item {$supply->name} is now {$status} in the portal.");
     }
+    
     public function bincard($id)
     {
         $item = Supply::findOrFail($id);
         
-        // Reverted to > 0 so adjustments are hidden from the transaction list
+        // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0) 
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
             ->orderBy('updated_at', 'asc')
             ->get();
 
         $totalIssued = $releases->sum('quantity');
         
-        // This math magically absorbs the hidden adjustments into the top row!
+        // This math magically bakes the hidden adjustments into the initial row!
         $startingBalance = $item->quantity + $totalIssued;
 
         $transactions = collect();
@@ -819,9 +835,11 @@ class SupplyController extends Controller
         $currentYear = (int) date('Y');
 
         foreach ($items as $item) {
+            // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '>', 0) // <--- Reverted back to > 0
+                ->where('quantity', '>', 0) 
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
                 ->whereYear('updated_at', $currentYear)
                 ->get();
 
@@ -962,6 +980,8 @@ class SupplyController extends Controller
         $usageData = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0)
+            // FIXED: Exclude adjustments from Item Usage Report
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']) 
             ->whereMonth('updated_at', $request->month)
             ->whereYear('updated_at', $request->year)
             ->selectRaw('department_name, SUM(quantity) as total_requested')

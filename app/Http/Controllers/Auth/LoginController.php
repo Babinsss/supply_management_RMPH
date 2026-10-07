@@ -25,8 +25,8 @@ class LoginController extends Controller
             return redirect('/superadmin/users');
         } 
         
-        // 2. If ICT Admin, send them to the main Admin Dashboard
-        elseif ($user->role === 'admin') {
+        // 2. If ICT Admin OR Forms Admin, send them to the main Admin Dashboard
+        elseif ($user->role === 'admin' || $user->role === 'forms_admin') {
             return redirect('/dashboard'); 
         } 
         
