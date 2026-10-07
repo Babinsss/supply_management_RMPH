@@ -25,34 +25,35 @@ class SupplyController extends Controller
     {
         $role = Auth::user()->role;
         
-        // 1. Filter Supplies & Critical Stock
         $supplyQuery = Supply::query();
-        $criticalQuery = Supply::whereRaw('quantity <= reorder_level');
 
         if ($role === 'forms_admin') {
             $supplyQuery->where('category', 'Forms');
-            $criticalQuery->where('category', 'Forms');
         } elseif ($role === 'admin') {
             $supplyQuery->where(function($q) {
                 $q->where('category', '!=', 'Forms')->orWhereNull('category');
             });
-            $criticalQuery->where(function($q) {
-                $q->where('category', '!=', 'Forms')->orWhereNull('category');
-            });
         }
 
-        $supplies = $supplyQuery->get();
-        $criticalSupplies = $criticalQuery->orderBy('quantity', 'asc')->orderBy('name', 'asc')->get();
+        $supplies = $supplyQuery->get()->groupBy('name')->map(function ($group) {
+            $first = $group->first();
+            $first->quantity = $group->sum('quantity');
+            $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
+            return $first;
+        })->values();
+
+        $criticalSupplies = $supplies->filter(function($item) {
+            return $item->quantity <= $item->reorder_level;
+        })->sortBy('quantity')->values();
+        
         $lowStockCount = $criticalSupplies->count();
         
-        // --- 7-Day Trend Data for Sparkline ---
         $chartDates = [];
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $chartDates[] = \Carbon\Carbon::now()->subDays($i)->format('M d');
 
-            // FILTER: Exclude system adjustments from the daily request count
             $reqsQuery = DepartmentRequest::whereDate('created_at', $date)
                 ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
 
@@ -68,8 +69,6 @@ class SupplyController extends Controller
             $chartData[] = $reqsQuery->distinct('batch_id')->count('batch_id');
         }
 
-        // 2. Filter Request Processing Timeline
-        // FILTER: Exclude internal system adjustments from the dashboard timeline
         $allRequestsQuery = DepartmentRequest::with(['supply', 'issuer'])
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
             ->where('batch_id', 'not like', 'ADJ-%');
@@ -231,26 +230,36 @@ class SupplyController extends Controller
 
     public function approveBatch(Request $request, $batch_id)
     {
-        $batchReqs = DepartmentRequest::where('batch_id', $batch_id)->get();
+        $role = Auth::user()->role;
+        
+        $query = DepartmentRequest::where('batch_id', $batch_id);
+
+        if ($role === 'forms_admin') {
+            $query->whereHas('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        } elseif ($role === 'admin') {
+            $query->where(function($q) {
+                $q->whereHas('supply', function($subQ) {
+                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
+                })->orWhereDoesntHave('supply');
+            });
+        }
+
+        $batchReqs = $query->get();
 
         if ($batchReqs->isEmpty()) {
-            return redirect()->back()->with('danger', 'Request not found.');
+            return redirect()->back()->with('danger', 'No authorized items found for approval in this request.');
         }
 
         if ($batchReqs->first()->status !== 'Pending') {
-            return redirect()->back()->with('warning', 'This request has already been processed.');
+            return redirect()->back()->with('warning', 'These specific items have already been processed.');
         }
 
         $isEmergency = $batchReqs->first()->is_emergency;
         $batchTime = $batchReqs->first()->created_at;
         
-        // ==========================================
-        // ISOLATED FIFO QUEUE LOGIC (Admins Only)
-        // ==========================================
         if (!$isEmergency) {
-            $role = Auth::user()->role;
-            
-            // ONLY enforce strict FIFO for regular Supply Admins (like Michael)
             if ($role === 'admin') {
                 $olderPendingExists = DepartmentRequest::where('status', 'Pending')
                     ->where('created_at', '<', $batchTime)
@@ -266,7 +275,6 @@ class SupplyController extends Controller
                 }
             }
         }
-        // ==========================================
 
         foreach ($batchReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
@@ -277,39 +285,85 @@ class SupplyController extends Controller
 
         $supplySums = [];
         foreach ($batchReqs as $req) {
-            if (!isset($supplySums[$req->supply_id])) {
-                $supplySums[$req->supply_id] = 0;
+            $name = $req->supply->name;
+            if (!isset($supplySums[$name])) {
+                $supplySums[$name] = 0;
             }
-            $supplySums[$req->supply_id] += $req->quantity;
+            $supplySums[$name] += $req->quantity;
         }
 
-        foreach ($supplySums as $supplyId => $totalRequested) {
-            $supply = Supply::find($supplyId);
-            if ($supply->quantity < $totalRequested) {
-                return redirect()->back()->with('danger', "Cannot approve! Total requested for {$supply->name} ({$totalRequested}) exceeds available stock ({$supply->quantity}).");
+        foreach ($supplySums as $name => $totalRequested) {
+            $combinedStock = Supply::where('name', $name)->sum('quantity');
+            if ($combinedStock < $totalRequested) {
+                return redirect()->back()->with('danger', "Cannot approve! Total requested for {$name} ({$totalRequested}) exceeds available combined stock ({$combinedStock}).");
             }
         }
         
         \Illuminate\Support\Facades\DB::transaction(function () use ($batchReqs) {
             foreach ($batchReqs as $req) {
-                $req->supply->quantity -= $req->quantity;
-                $req->supply->save();
+                $itemName = $req->supply->name;
+                $remainingToDeduct = $req->quantity;
                 
-                $req->status = 'Approved';
-                $req->issued_by = Auth::id(); 
-                $req->save();
+                $matchingSupplies = Supply::where('name', $itemName)
+                    ->where('quantity', '>', 0)
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+                
+                $firstMatch = true;
+                
+                foreach ($matchingSupplies as $supply) {
+                    if ($remainingToDeduct <= 0) break;
+                    
+                    $deductAmount = min($supply->quantity, $remainingToDeduct);
+                    $supply->quantity -= $deductAmount;
+                    $supply->save();
+                    
+                    if ($firstMatch) {
+                        $req->supply_id = $supply->id;
+                        $req->quantity = $deductAmount;
+                        $req->status = 'Approved';
+                        $req->issued_by = Auth::id();
+                        $req->save();
+                        $firstMatch = false;
+                    } else {
+                        $newReq = $req->replicate();
+                        $newReq->supply_id = $supply->id;
+                        $newReq->quantity = $deductAmount;
+                        $newReq->status = 'Approved';
+                        $newReq->issued_by = Auth::id();
+                        $newReq->save();
+                    }
+                    
+                    $remainingToDeduct -= $deductAmount;
+                }
             }
         });
 
         $departmentName = $batchReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
 
-        return redirect()->back()->with('success', 'Bulk request approved and stock updated!');
+        return redirect()->back()->with('success', 'Your department items in this request were approved!');
     }
 
     public function denyBatch($batch_id)
     {
-        $batchReqs = DepartmentRequest::where('batch_id', $batch_id)->get();
+        $role = Auth::user()->role;
+        
+        $query = DepartmentRequest::where('batch_id', $batch_id);
+
+        if ($role === 'forms_admin') {
+            $query->whereHas('supply', function($q) {
+                $q->where('category', 'Forms');
+            });
+        } elseif ($role === 'admin') {
+            $query->where(function($q) {
+                $q->whereHas('supply', function($subQ) {
+                    $subQ->where('category', '!=', 'Forms')->orWhereNull('category');
+                })->orWhereDoesntHave('supply');
+            });
+        }
+
+        $batchReqs = $query->get();
 
         foreach ($batchReqs as $req) {
             $req->status = 'Denied';
@@ -321,12 +375,18 @@ class SupplyController extends Controller
             \App\Models\ActivityLog::log('Supply Issuance', "Denied request {$batch_id} for {$departmentName}");
         }
 
-        return redirect()->back()->with('success', 'Bulk request denied. Stock remains unchanged.');
+        return redirect()->back()->with('success', 'Your specific items in this request were denied. Stock remains unchanged.');
     }
 
     public function departmentPortal()
     {
-        $supplies = Supply::where('is_visible', true)->orderBy('name', 'asc')->get();
+        $supplies = Supply::where('is_visible', true)->orderBy('name', 'asc')->get()
+            ->groupBy('name')->map(function ($group) {
+                $first = $group->first();
+                $first->quantity = $group->sum('quantity');
+                return $first;
+            })->values();
+
         $departments = \App\Models\Department::where('is_active', true)->orderBy('group_name')->orderBy('name')->get();
         $categories = \App\Models\Category::where('is_active', true)->orderBy('name')->get();
         
@@ -455,7 +515,13 @@ class SupplyController extends Controller
             });
         }
 
-        $supplies = $query->get();
+        $supplies = $query->get()->groupBy('name')->map(function ($group) {
+            $first = $group->first();
+            $first->quantity = $group->sum('quantity');
+            $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
+            return $first;
+        })->values();
+
         $categories = \App\Models\Category::orderBy('name')->get(); 
         
         return view('inventory', compact('supplies', 'categories'));
@@ -469,8 +535,6 @@ class SupplyController extends Controller
 
         $query = Supply::query();
 
-        // 1. Constrain the SUM to ONLY Approved requests in the specific month/year
-        // FIXED: Now specifically excludes adjustments so they don't inflate the "Total Issued" count
         $query->withSum(['departmentRequests' => function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
               ->where('quantity', '>', 0)
@@ -482,7 +546,6 @@ class SupplyController extends Controller
             }
         }], 'quantity');
 
-        // 2. ONLY fetch items that have at least one normal approved issuance in this timeframe
         $query->whereHas('departmentRequests', function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
               ->where('quantity', '>', 0)
@@ -494,7 +557,6 @@ class SupplyController extends Controller
             }
         });
 
-        // 3. SMART CATEGORY & ROLE FILTERING
         if ($role === 'forms_admin') {
             $query->where('category', 'Forms');
         } elseif ($request->has('category') && $request->category !== 'ALL') {
@@ -507,14 +569,10 @@ class SupplyController extends Controller
 
         $supplies = $query->orderBy('name', 'asc')->get();
 
-        // ==========================================
-        // 4. REVERSE MATH: THE "TIME MACHINE"
-        // ==========================================
         if ($month && $year) {
             $endOfMonth = \Carbon\Carbon::createFromDate($year, $month, 1)->endOfMonth();
             
             foreach ($supplies as $supply) {
-                // EXCLUSION: Normal issues only to perfectly reverse the math
                 $futureTransactions = \App\Models\DepartmentRequest::where('supply_id', $supply->id)
                     ->where('status', 'Approved')
                     ->where('quantity', '>', 0) 
@@ -525,7 +583,21 @@ class SupplyController extends Controller
                 $supply->quantity = $supply->quantity + $futureTransactions;
             }
         }
+        
         // ==========================================
+        // VIRTUAL GROUPING: Print Inventory consolidation
+        // ==========================================
+        $supplies = $supplies->groupBy('name')->map(function ($group) {
+            $first = $group->first();
+            $first->quantity = $group->sum('quantity');
+            $first->department_requests_sum_quantity = $group->sum('department_requests_sum_quantity');
+            
+            // Calculate Beginning Balance
+            $first->beginning_balance = $first->quantity + (int)$first->department_requests_sum_quantity;
+            
+            $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
+            return $first;
+        })->values();
 
         $reportMonth = $month ? \Carbon\Carbon::createFromFormat('m', $month)->format('F') : null;
         $reportYear = $year;
@@ -539,7 +611,6 @@ class SupplyController extends Controller
         $item = Supply::findOrFail($id);
         $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
         
-        // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
         $releases = DepartmentRequest::where('supply_id', $id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0) 
@@ -562,7 +633,6 @@ class SupplyController extends Controller
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
             
-            // Calculates accurate starting balance instead of 0
             $totalIssued = $releases->sum('quantity');
             $balance = $item->quantity + $totalIssued;
             
@@ -585,7 +655,14 @@ class SupplyController extends Controller
     
     public function exportInventoryExcel()
     {
-        $supplies = Supply::orderBy('name', 'asc')->get();
+        $supplies = Supply::orderBy('name', 'asc')->get()
+            ->groupBy('name')->map(function ($group) {
+                $first = $group->first();
+                $first->quantity = $group->sum('quantity');
+                $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
+                return $first;
+            })->values();
+            
         $filename = "RMPH_Full_Inventory_" . date('Y-m-d') . ".csv";
         
         $headers = [
@@ -612,10 +689,14 @@ class SupplyController extends Controller
     
     public function approverDashboard()
     {
-        $lowStockCount = Supply::whereRaw('quantity <= reorder_level')->count();
+        $groupedAll = Supply::all()->groupBy('name')->map(function($g) {
+            $first = $g->first();
+            $first->quantity = $g->sum('quantity');
+            return $first;
+        });
+        $lowStockCount = $groupedAll->filter(function($i) { return $i->quantity <= $i->reorder_level; })->count();
 
         $fetchTopItems = function ($startDate) {
-            // FILTER: Exclude internal system adjustments from QMO top items aggregation
             $records = DepartmentRequest::where('created_at', '>=', $startDate)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
@@ -655,7 +736,6 @@ class SupplyController extends Controller
             return $key === 'All Departments';
         })->sort()->values();
 
-        // FILTER: Exclude internal system adjustments from the QMO timeline
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
             ->where('batch_id', 'not like', 'ADJ-%')
@@ -692,9 +772,17 @@ class SupplyController extends Controller
             'activeDepartments' => $activeDepartments 
         ]);
     }
+    
     public function approverInventory()
     {
-        $supplies = Supply::orderBy('name', 'asc')->get();
+        $supplies = Supply::orderBy('name', 'asc')->get()
+            ->groupBy('name')->map(function ($group) {
+                $first = $group->first();
+                $first->quantity = $group->sum('quantity');
+                $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
+                return $first;
+            })->values();
+            
         return view('approver.inventory', compact('supplies'));
     }
 
@@ -719,7 +807,6 @@ class SupplyController extends Controller
         $cardsData = [];
 
         foreach ($matchingSupplies as $supply) {
-            // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
@@ -730,7 +817,6 @@ class SupplyController extends Controller
                 ->orderBy('id', 'asc') 
                 ->get();
 
-            // TOTAL ABSORPTION: Only reverse calculate normal issues
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
@@ -745,7 +831,7 @@ class SupplyController extends Controller
             foreach ($releasesAsc as $release) {
                 $tempBalance -= $release->quantity;
                 $release->running_balance = $tempBalance;
-                $formattedReleases->push($release); // Filter is gone because query handles it securely
+                $formattedReleases->push($release); 
             }
             
             if ($supply->quantity == 0 && $balance_forwarded == 0 && $formattedReleases->isEmpty()) {
@@ -781,7 +867,6 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         
-        // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
         $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0) 
@@ -791,7 +876,6 @@ class SupplyController extends Controller
 
         $totalIssued = $releases->sum('quantity');
         
-        // This math magically bakes the hidden adjustments into the initial row!
         $startingBalance = $item->quantity + $totalIssued;
 
         $transactions = collect();
@@ -835,7 +919,6 @@ class SupplyController extends Controller
         $currentYear = (int) date('Y');
 
         foreach ($items as $item) {
-            // TOTAL ABSORPTION: Completely ignore adjustments so math never jumps
             $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0) 
@@ -882,7 +965,13 @@ class SupplyController extends Controller
 
     public function liveInventory()
     {
-        $supplies = \App\Models\Supply::select('id', 'quantity', 'reorder_level')->get();
+        $supplies = \App\Models\Supply::select('id', 'name', 'quantity', 'reorder_level')->get()
+            ->groupBy('name')->map(function($g) {
+                $first = $g->first();
+                $first->quantity = $g->sum('quantity');
+                return $first;
+            })->values();
+            
         return response()->json($supplies);
     }
     
@@ -905,11 +994,9 @@ class SupplyController extends Controller
         $batchId = 'ADJ-' . strtoupper(\Illuminate\Support\Str::random(5));
 
         if ($adjustment > 0) {
-            // Addition: Add straight to the specific item they clicked
             $clickedItem->quantity += $adjustment;
             $clickedItem->save();
             
-            // Log this as a negative issue so the "Reverse Math" protects previous months
             \App\Models\DepartmentRequest::create([
                 'batch_id' => $batchId,
                 'department_name' => 'SYSTEM RESTOCK',
@@ -924,7 +1011,6 @@ class SupplyController extends Controller
             \App\Models\ActivityLog::log('Inventory', "Adjusted stock UP for {$clickedItem->name} by {$adjustment}. Reason: {$reason}");
         } 
         else {
-            // Deduction: Deduct across the combined pool of all items with this exact name
             $deductAmount = abs($adjustment);
             $totalCombinedStock = $matchingSupplies->sum('quantity');
 
@@ -943,7 +1029,6 @@ class SupplyController extends Controller
                     $supply->quantity -= $deductedFromThis;
                     $supply->save();
 
-                    // Log the deduction securely for the ledger
                     \App\Models\DepartmentRequest::create([
                         'batch_id' => $batchId,
                         'department_name' => 'SYSTEM ADJUSTMENT',
@@ -980,7 +1065,6 @@ class SupplyController extends Controller
         $usageData = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
             ->where('quantity', '>', 0)
-            // FIXED: Exclude adjustments from Item Usage Report
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']) 
             ->whereMonth('updated_at', $request->month)
             ->whereYear('updated_at', $request->year)

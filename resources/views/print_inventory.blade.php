@@ -131,12 +131,13 @@
     <table>
         <thead>
             <tr>
-                <th width="5%">#</th>
-                <th width="35%" class="text-left">ITEM DESCRIPTION</th>
-                <th width="15%">CATEGORY</th>
-                <th width="10%">UNIT</th>
+                <th width="4%">#</th>
+                <th width="31%" class="text-left">ITEM DESCRIPTION</th>
+                <th width="14%">CATEGORY</th>
+                <th width="7%">UNIT</th>
+                <th width="12%">BEGINNING BALANCE</th>
                 <th width="12%">ITEMS ISSUED</th>
-                <th width="13%">AVAILABLE STOCK</th>
+                <th width="10%">AVAILABLE STOCK</th>
                 <th width="10%">STATUS</th>
             </tr>
         </thead>
@@ -166,12 +167,15 @@
                 
                 <td>{{ $item->category ?: 'UNCATEGORIZED' }}</td>
                 <td>{{ $item->unit }}</td>
+
+                {{-- NEW: Beginning Balance --}}
+                <td style="background-color: #f9f9f9;"><strong>{{ $item->beginning_balance ?? $item->quantity }}</strong></td>
                 
                 {{-- Items Issued (Calculated by withSum logic in Controller) --}}
                 <td><strong>{{ $item->department_requests_sum_quantity ?? 0 }}</strong></td>
                 
                 {{-- Available Stock --}}
-                <td style="font-size: 11px;"><strong>{{ $item->quantity }}</strong></td>
+                <td style="font-size: 11px; background-color: #f0fdf4;"><strong>{{ $item->quantity }}</strong></td>
                 
                 {{-- Dynamic Status Logic --}}
                 <td>
@@ -186,7 +190,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="7" style="padding: 20px;">No inventory records found for this period.</td>
+                <td colspan="8" style="padding: 20px;">No inventory records found for this period.</td>
             </tr>
             @endforelse
         </tbody>
