@@ -64,13 +64,35 @@
                             <p class="text-muted small mb-3"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
                             
                             <div class="d-flex flex-wrap gap-2 mb-3">
+                                {{-- 1. Always show the first 3 items --}}
                                 @foreach(collect($batch['items'])->take(3) as $req)
                                     <span class="badge bg-body text-body border border-secondary-subtle px-3 py-2 shadow-sm">
                                         <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{ $req->supply?->name ?? 'Deleted/Archived Item' }}
                                     </span>
                                 @endforeach
+                                
+                                {{-- 2. If there are more than 3 items, add the clickable drop-down feature --}}
                                 @if(count($batch['items']) > 3)
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-3 py-2">+ {{ count($batch['items']) - 3 }} more</span>
+                                    {{-- The Clickable Badge --}}
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-3 py-2" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#moreItems-{{ $batch['batch_id'] }}" 
+                                        style="cursor: pointer; transition: 0.2s;"
+                                        onclick="this.style.display='none'">
+                                        <i class="bi bi-arrows-expand me-1"></i> + {{ count($batch['items']) - 3 }} more
+                                    </span>
+
+                                    {{-- The Hidden Items that smoothly drop down --}}
+                                    <div class="collapse w-100" id="moreItems-{{ $batch['batch_id'] }}">
+                                        <div class="d-flex flex-wrap gap-2 mt-1">
+                                            {{-- skip(3) ensures we only show the items that weren't already printed above --}}
+                                            @foreach(collect($batch['items'])->skip(3) as $req)
+                                                <span class="badge bg-body text-body border border-secondary-subtle px-3 py-2 shadow-sm">
+                                                    <span class="text-primary fw-bolder me-1">{{ $req->quantity }}x</span> {{ $req->supply?->name ?? 'Deleted/Archived Item' }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 @endif
                             </div>
 
