@@ -586,17 +586,6 @@ class SupplyController extends Controller
             }
         }], 'quantity');
 
-        $query->whereHas('departmentRequests', function ($q) use ($month, $year) {
-            $q->where('status', 'Approved')
-              ->where('quantity', '>', 0)
-              ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
-              
-            if ($month && $year) {
-                $q->whereMonth('created_at', $month)
-                  ->whereYear('created_at', $year);
-            }
-        });
-
         if ($role === 'forms_admin') {
             $query->where('category', 'like', '%Form%');
         } elseif ($request->has('category') && $request->category !== 'ALL') {
