@@ -314,7 +314,7 @@
             // 4. QUEUE LIVE UPDATE
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
-                fetch('/api/pending-count').then(r => r.json()).then(data => {
+                fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()).then(data => {
                     if (data.count !== currentCount && !document.querySelector('.modal.show')) location.reload(); 
                 });
             }, 5000);
@@ -345,7 +345,7 @@
             });
 
             function sniffLowStock() {
-                fetch('/api/low-stock')
+                fetch('/api/low-stock', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(r => r.json())
                     .then(data => {
                         if (data.count > 0) {
