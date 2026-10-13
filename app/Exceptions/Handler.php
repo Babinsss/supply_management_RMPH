@@ -38,10 +38,19 @@ class Handler extends ExceptionHandler
             //
         });
 
-        // Add this custom rule to catch 419 Page Expired errors
-        $this->renderable(function (\Illuminate\Session\TokenMismatchException $e, $request) {
-            // If they were trying to log in or submit a form, send them back politely
-            return redirect()->back()->withInput()->with('warning', 'For your security, your session expired due to inactivity. Please try again.');
+        // Catch 419 Page Expired errors (Laravel converts TokenMismatchException to HttpException(419) in prepareException)
+        $this->renderable(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, $request) {
+            if ($e->getStatusCode() === 419) {
+                if ($request->is('logout')) {
+                    return redirect('/login');
+                }
+
+                $request->session()->regenerateToken();
+
+                return redirect()->back()
+                    ->withInput($request->except('password', 'password_confirmation', '_token'))
+                    ->with('warning', 'Your page session was refreshed due to inactivity. Please submit again.');
+            }
         });
     }
 }

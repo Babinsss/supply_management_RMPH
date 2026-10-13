@@ -524,6 +524,13 @@
             {{-- =========================
                  LOGIN FORM
             ========================== --}}
+            @if(session('warning'))
+                <div class="alert alert-warning border-0 rounded-3 py-2 px-3 mb-3 small fw-semibold d-flex align-items-center gap-2">
+                    <i class="bi bi-arrow-clockwise fs-6"></i>
+                    <span>{{ session('warning') }}</span>
+                </div>
+            @endif
+
             <form method="POST" action="{{ route('login') }}">
                 @csrf
 
