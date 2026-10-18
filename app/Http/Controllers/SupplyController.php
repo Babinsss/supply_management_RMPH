@@ -158,12 +158,78 @@ class SupplyController extends Controller
         $validated['unit'] = $request->input('unit', 'pcs'); 
         $validated['reorder_level'] = $request->input('reorder_level', 10); 
 
+        $trimmedName = trim($validated['name']);
+
+        // Check if an item with the same name already exists (case-insensitive & trimmed)
+        $existingItem = Supply::withTrashed()
+            ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($trimmedName)])
+            ->first();
+
+        if ($existingItem) {
+            if ($existingItem->trashed()) {
+                $existingItem->restore();
+            }
+
+            $addedQty = (int)$validated['quantity'];
+            $existingItem->quantity += $addedQty;
+
+            // Merge RIS numbers cleanly without duplicates
+            if (!empty($validated['ris_number'])) {
+                $currentRis = array_filter(array_map('trim', explode(',', (string)$existingItem->ris_number)));
+                $incomingRis = array_filter(array_map('trim', explode(',', (string)$validated['ris_number'])));
+                $mergedRis = array_unique(array_merge($currentRis, $incomingRis));
+                $existingItem->ris_number = implode(', ', $mergedRis);
+            }
+
+            // Update supplier if provided
+            if (!empty($validated['supplier'])) {
+                $existingItem->supplier = $validated['supplier'];
+            }
+
+            // Update unit price if provided
+            if (isset($validated['unit_price']) && $validated['unit_price'] !== null && $validated['unit_price'] !== '') {
+                $existingItem->unit_price = $validated['unit_price'];
+            }
+
+            // Update delivery date if provided
+            if (!empty($validated['date_delivered'])) {
+                $existingItem->date_delivered = $validated['date_delivered'];
+            }
+
+            // Update expiry date if provided
+            if (!empty($validated['expiry_date'])) {
+                $existingItem->expiry_date = $validated['expiry_date'];
+            }
+
+            // Fill in category or description if existing was empty
+            if (empty($existingItem->category) && !empty($validated['category'])) {
+                $existingItem->category = $validated['category'];
+            }
+            if (empty($existingItem->description) && !empty($validated['description'])) {
+                $existingItem->description = $validated['description'];
+            }
+
+            if ($request->filled('unit') && empty($existingItem->unit)) {
+                $existingItem->unit = $request->input('unit');
+            }
+
+            $existingItem->is_visible = 1;
+            $existingItem->save();
+
+            \App\Models\ActivityLog::log('Inventory', "Restocked existing item: {$existingItem->name} (+{$addedQty} {$existingItem->unit}, New Total: {$existingItem->quantity})");
+
+            return redirect('/inventory')
+                ->with('success', "Delivery added to existing stock for {$existingItem->name}! Added +{$addedQty} {$existingItem->unit} (New Total: {$existingItem->quantity}).")
+                ->with('active_category', $existingItem->category);
+        }
+
+        $validated['name'] = $trimmedName;
         $newItem = Supply::create($validated);
 
         \App\Models\ActivityLog::log('Inventory', "Added new item: {$newItem->name} (Qty: {$newItem->quantity})");
 
         return redirect('/inventory')
-            ->with('success', 'New item added successfully!')
+            ->with('success', "New item '{$newItem->name}' added successfully!")
             ->with('active_category', $newItem->category);
     }
     

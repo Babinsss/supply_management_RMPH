@@ -472,11 +472,19 @@
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Item Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control input-modern" name="name" required>
+                                <input type="text" class="form-control input-modern" name="name" id="addSupplyName" list="existingSupplyDatalist" required placeholder="Type or select existing item..." autocomplete="off" oninput="autoFillExistingSupply(this.value)">
+                                <datalist id="existingSupplyDatalist">
+                                    @foreach($supplies as $s)
+                                        <option value="{{ $s->name }}">{{ $s->name }} (Current Stock: {{ $s->quantity }} {{ $s->unit }})</option>
+                                    @endforeach
+                                </datalist>
+                                <div id="existingSupplyNotice" class="text-primary small fw-bold mt-1" style="display: none;">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Existing item detected! New delivery will automatically add to current stock.
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Category</label>
-                                <select class="form-select input-modern" name="category" required>
+                                <select class="form-select input-modern" name="category" id="addSupplyCategory" required>
                                     <option value="" disabled selected>Select Category...</option>
                                     @foreach($masterCategories as $cat)
                                         <option value="{{ $cat->name }}">{{ strtoupper($cat->name) }}</option>
@@ -486,30 +494,30 @@
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-md-4">
-                                <label class="form-label text-muted small fw-bold text-uppercase">Initial Qty <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control input-modern" name="quantity" required min="0">
+                                <label class="form-label text-muted small fw-bold text-uppercase" id="addSupplyQtyLabel">Delivery Qty <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control input-modern" name="quantity" required min="0" placeholder="e.g. 50">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Unit (e.g., pcs)</label>
-                                <input type="text" class="form-control input-modern" name="unit" value="pcs">
+                                <input type="text" class="form-control input-modern" name="unit" id="addSupplyUnit" value="pcs">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Price (₱)</label>
-                                <input type="number" step="0.01" class="form-control input-modern" name="unit_price">
+                                <input type="number" step="0.01" class="form-control input-modern" name="unit_price" id="addSupplyPrice">
                             </div>
                         </div>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i> Reorder Alert</label>
-                                <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" value="10" min="0">
+                                <input type="number" class="form-control input-modern border-danger border-opacity-50" name="reorder_level" id="addSupplyReorder" value="10" min="0">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">RIS Number / Ref</label>
-                                <input type="text" class="form-control input-modern" name="ris_number">
+                                <input type="text" class="form-control input-modern" name="ris_number" id="addSupplyRis" placeholder="e.g. 1037">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted small fw-bold text-uppercase">Supplier</label>
-                                <input type="text" class="form-control input-modern" name="supplier" placeholder="e.g. Medtek">
+                                <input type="text" class="form-control input-modern" name="supplier" id="addSupplySupplier" placeholder="e.g. Medtek">
                             </div>
                         </div>
                     </div>
@@ -737,6 +745,34 @@
             function quickMonitor(id) {
                 document.getElementById('usageItemId').value = id;
                 new bootstrap.Modal(document.getElementById('itemUsageModal')).show();
+            }
+
+            // AUTO-FILL DELIVERY DETAILS IF EXISTING ITEM IS SELECTED
+            const existingSuppliesMap = @json($supplies->keyBy(fn($item) => strtolower(trim($item->name))));
+
+            function autoFillExistingSupply(val) {
+                const key = (val || '').toLowerCase().trim();
+                const notice = document.getElementById('existingSupplyNotice');
+                const label = document.getElementById('addSupplyQtyLabel');
+                const catSelect = document.getElementById('addSupplyCategory');
+                const unitInput = document.getElementById('addSupplyUnit');
+                const priceInput = document.getElementById('addSupplyPrice');
+                const reorderInput = document.getElementById('addSupplyReorder');
+                const supplierInput = document.getElementById('addSupplySupplier');
+
+                if (existingSuppliesMap[key]) {
+                    const item = existingSuppliesMap[key];
+                    if (notice) notice.style.display = 'block';
+                    if (label) label.innerHTML = `New Delivery Qty <span class="text-danger">*</span> <span class="badge bg-primary bg-opacity-10 text-primary ms-1">Current: ${item.quantity} ${item.unit || 'pcs'}</span>`;
+                    if (item.category && catSelect) catSelect.value = item.category;
+                    if (item.unit && unitInput) unitInput.value = item.unit;
+                    if (item.unit_price && priceInput) priceInput.value = item.unit_price;
+                    if (item.reorder_level !== undefined && reorderInput) reorderInput.value = item.reorder_level;
+                    if (item.supplier && supplierInput && !supplierInput.value) supplierInput.value = item.supplier;
+                } else {
+                    if (notice) notice.style.display = 'none';
+                    if (label) label.innerHTML = `Delivery Qty <span class="text-danger">*</span>`;
+                }
             }
         </script>
     </x-slot>
