@@ -187,13 +187,13 @@
                 </tr>
 
                 @php
-                    $sortedReleases = collect($card['releases'])->sortBy('created_at');
+                    $sortedReleases = $card['releases'];
                 @endphp
 
                 @foreach ($sortedReleases as $release)
                 <tr>
-                    <td>{{ \Carbon\Carbon::parse($release->created_at)->format('m/d/Y') }}</td>
-                    <td>{{ strtoupper(substr($release->batch_id, 0, 8)) }}</td>
+                    <td>{{ \Carbon\Carbon::parse($release->updated_at ?: $release->created_at)->format('m/d/Y') }}</td>
+                    <td>{{ strlen($release->batch_id) > 15 ? strtoupper(substr($release->batch_id, 0, 8)) : strtoupper($release->batch_id) }}</td>
                     <td class="desc-col">{{ $release->department_name }} ({{ $release->requested_by }})</td>
                     
                     @if ($release->quantity < 0)

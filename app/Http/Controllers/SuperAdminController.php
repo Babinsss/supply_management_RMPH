@@ -155,6 +155,9 @@ class SuperAdminController extends Controller
     {
         // Fetch all requests, typically you want to see Issued/Approved ones
         $allRequests = \App\Models\DepartmentRequest::with(['supply', 'issuer'])
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+            ->where('batch_id', 'not like', 'ADJ-%')
+            ->where('batch_id', 'not like', 'DEL-%')
             ->orderBy('created_at', 'desc')
             ->get();
 

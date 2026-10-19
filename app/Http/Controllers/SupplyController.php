@@ -54,7 +54,7 @@ class SupplyController extends Controller
         for ($i = 6; $i >= 0; $i--) {
             $date = \Carbon\Carbon::now()->subDays($i)->format('Y-m-d');
             $reqsQuery = DepartmentRequest::whereDate('created_at', $date)
-                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
 
             if ($role === 'forms_admin') {
                 $reqsQuery->whereHas('supply', function($q) {
@@ -73,8 +73,9 @@ class SupplyController extends Controller
         }
 
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
-            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
             ->where('batch_id', 'not like', 'ADJ-%')
+            ->where('batch_id', 'not like', 'DEL-%')
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
@@ -215,6 +216,30 @@ class SupplyController extends Controller
 
             $existingItem->is_visible = 1;
             $existingItem->save();
+
+            // Record incoming delivery transaction to preserve historical ledgers
+            if ($addedQty > 0) {
+                $deliveryDate = !empty($validated['date_delivered']) 
+                    ? \Carbon\Carbon::parse($validated['date_delivered'])->setTimeFrom(now()) 
+                    : now();
+
+                $risNumber = !empty($validated['ris_number']) ? trim($validated['ris_number']) : null;
+                $supplierName = !empty($validated['supplier']) ? trim($validated['supplier']) : ($existingItem->supplier ?: 'Supplier Delivery');
+
+                $deliveryRecord = new \App\Models\DepartmentRequest();
+                $deliveryRecord->batch_id = $risNumber ?: ('DEL-' . strtoupper(\Illuminate\Support\Str::random(5)));
+                $deliveryRecord->department_name = 'DELIVERY';
+                $deliveryRecord->requested_by = $supplierName;
+                $deliveryRecord->supply_id = $existingItem->id;
+                $deliveryRecord->quantity = -$addedQty; // Negative qty designates incoming stock receipt
+                $deliveryRecord->purpose = 'New Delivery Restock' . ($risNumber ? " (RIS: {$risNumber})" : '');
+                $deliveryRecord->status = 'Approved';
+                $deliveryRecord->is_emergency = 0;
+                $deliveryRecord->issued_by = \Illuminate\Support\Facades\Auth::id();
+                $deliveryRecord->created_at = $deliveryDate;
+                $deliveryRecord->updated_at = $deliveryDate;
+                $deliveryRecord->save();
+            }
 
             \App\Models\ActivityLog::log('Inventory', "Restocked existing item: {$existingItem->name} (+{$addedQty} {$existingItem->unit}, New Total: {$existingItem->quantity})");
 
@@ -644,11 +669,11 @@ class SupplyController extends Controller
         $query->withSum(['departmentRequests' => function ($q) use ($month, $year) {
             $q->where('status', 'Approved')
               ->where('quantity', '>', 0)
-              ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT']);
+              ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
               
             if ($month && $year) {
-                $q->whereMonth('created_at', $month)
-                  ->whereYear('created_at', $year);
+                $q->whereMonth('updated_at', $month)
+                  ->whereYear('updated_at', $year);
             }
         }], 'quantity');
 
@@ -665,25 +690,47 @@ class SupplyController extends Controller
         $supplies = $query->orderBy('name', 'asc')->get();
 
         if ($month && $year) {
+            $startOfMonth = \Carbon\Carbon::createFromDate($year, $month, 1)->startOfMonth();
             $endOfMonth = \Carbon\Carbon::createFromDate($year, $month, 1)->endOfMonth();
             
             foreach ($supplies as $supply) {
                 $futureTransactions = \App\Models\DepartmentRequest::where('supply_id', $supply->id)
                     ->where('status', 'Approved')
                     ->where('quantity', '>', 0) 
-                    ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
-                    ->where('created_at', '>', $endOfMonth)
+                    ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+                    ->where('updated_at', '>', $endOfMonth)
                     ->sum('quantity');
 
-                $supply->quantity = $supply->quantity + $futureTransactions;
+                $futureDeliveries = abs(\App\Models\DepartmentRequest::where('supply_id', $supply->id)
+                    ->where('status', 'Approved')
+                    ->where('department_name', 'DELIVERY')
+                    ->where('updated_at', '>', $endOfMonth)
+                    ->sum('quantity'));
+
+                $monthDeliveries = abs(\App\Models\DepartmentRequest::where('supply_id', $supply->id)
+                    ->where('status', 'Approved')
+                    ->where('department_name', 'DELIVERY')
+                    ->whereBetween('updated_at', [$startOfMonth, $endOfMonth])
+                    ->sum('quantity'));
+
+                $supply->quantity = $supply->quantity + $futureTransactions - $futureDeliveries;
+                $supply->deliveries_sum_quantity = $monthDeliveries;
             }
         }
         
-        $supplies = $supplies->groupBy('name')->map(function ($group) {
+        $supplies = $supplies->groupBy('name')->map(function ($group) use ($month, $year) {
             $first = $group->first();
             $first->quantity = $group->sum('quantity');
             $first->department_requests_sum_quantity = $group->sum('department_requests_sum_quantity');
-            $first->beginning_balance = $first->quantity + (int)$first->department_requests_sum_quantity;
+            $first->deliveries_sum_quantity = $group->sum('deliveries_sum_quantity');
+
+            if ($month && $year) {
+                // Beginning Balance = Ending Available Stock - Deliveries in Month + Issuances in Month
+                $first->beginning_balance = $first->quantity - (int)$first->deliveries_sum_quantity + (int)$first->department_requests_sum_quantity;
+            } else {
+                $first->beginning_balance = $first->quantity;
+            }
+
             $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
             return $first;
         })->values();
@@ -698,16 +745,26 @@ class SupplyController extends Controller
     public function exportExcel(Request $request, $id)
     {
         $item = Supply::findOrFail($id);
-        $monthFilter = $request->input('month', Carbon::now()->format('Y-m'));
+        $monthFilter = $request->input('month', Carbon::now()->format('m'));
+        $yearFilter = $request->input('year', Carbon::now()->format('Y'));
+        $startOfMonth = "$yearFilter-$monthFilter-01 00:00:00";
         
         $releases = DepartmentRequest::where('supply_id', $id)
             ->where('status', 'Approved')
-            ->where('quantity', '>', 0) 
-            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
-            ->orderBy('created_at', 'asc')
+            ->where(function($q) {
+                $q->where(function($sub) {
+                    $sub->where('quantity', '>', 0)
+                        ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
+                })
+                ->orWhere('department_name', 'DELIVERY');
+            })
+            ->whereMonth('updated_at', $monthFilter)
+            ->whereYear('updated_at', $yearFilter)
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc')
             ->get();
             
-        $filename = "Stockcard_{$item->name}_{$monthFilter}.csv";
+        $filename = "Stockcard_{$item->name}_{$yearFilter}_{$monthFilter}.csv";
 
         $headers = [
             "Content-type"        => "text/csv",
@@ -716,24 +773,53 @@ class SupplyController extends Controller
             "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
             "Expires"             => "0"
         ];
-        $columns = ['Date', 'Reference', 'Department', 'Requested By', 'Qty Issued', 'Running Balance'];
+        $columns = ['Date', 'Reference', 'From Whom Received / To Whom Issued', 'Qty Received', 'Qty Issued', 'Running Balance'];
 
-        $callback = function () use ($releases, $columns, $item) {
+        $callback = function () use ($releases, $columns, $item, $startOfMonth) {
             $file = fopen('php://output', 'w');
             fputcsv($file, $columns);
             
-            $totalIssued = $releases->sum('quantity');
-            $balance = $item->quantity + $totalIssued;
-            
+            $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $item->id)
+                ->where('status', 'Approved')
+                ->where('quantity', '>', 0) 
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+                ->where('updated_at', '>=', $startOfMonth)
+                ->sum('quantity');
+
+            $futureAndCurrentDeliveries = abs(DepartmentRequest::where('supply_id', $item->id)
+                ->where('status', 'Approved')
+                ->where('department_name', 'DELIVERY')
+                ->where('updated_at', '>=', $startOfMonth)
+                ->sum('quantity'));
+
+            $balance = $item->quantity + $futureAndCurrentIssued - $futureAndCurrentDeliveries;
+
+            fputcsv($file, [
+                Carbon::parse($startOfMonth)->format('m/d/Y'),
+                '',
+                'BALANCE FORWARDED',
+                '',
+                '',
+                $balance
+            ]);
+
             foreach ($releases as $release) {
-                $balance -= $release->quantity; 
+                if ($release->quantity < 0) {
+                    $balance += abs($release->quantity);
+                    $qtyReceived = abs($release->quantity);
+                    $qtyIssued = '';
+                } else {
+                    $balance -= $release->quantity;
+                    $qtyReceived = '';
+                    $qtyIssued = $release->quantity;
+                }
                 
                 fputcsv($file, [
-                    Carbon::parse($release->created_at)->format('m/d/Y'),
+                    Carbon::parse($release->updated_at ?: $release->created_at)->format('m/d/Y'),
                     strtoupper(substr($release->batch_id, 0, 8)),
-                    $release->department_name,
-                    $release->requested_by,
-                    $release->quantity,
+                    $release->department_name . ' (' . $release->requested_by . ')',
+                    $qtyReceived,
+                    $qtyIssued,
                     $balance
                 ]);
             }
@@ -790,7 +876,7 @@ class SupplyController extends Controller
             $records = DepartmentRequest::where('created_at', '>=', $startDate)
                 ->where('status', 'Approved')
                 ->where('quantity', '>', 0)
-                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
                 ->selectRaw('supply_id, department_name, SUM(quantity) as total_qty')
                 ->groupBy('supply_id', 'department_name')
                 ->with('supply')
@@ -827,8 +913,9 @@ class SupplyController extends Controller
         })->sort()->values();
 
         $allRequests = DepartmentRequest::with(['supply', 'issuer'])
-            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
             ->where('batch_id', 'not like', 'ADJ-%')
+            ->where('batch_id', 'not like', 'DEL-%')
             ->orderByRaw("FIELD(status, 'Pending', 'Approved', 'Denied')")
             ->orderByRaw("CASE WHEN status = 'Pending' THEN created_at END ASC")
             ->orderByRaw("CASE WHEN status != 'Pending' THEN created_at END DESC")
@@ -922,27 +1009,44 @@ class SupplyController extends Controller
         foreach ($matchingSupplies as $supply) {
             $releasesAsc = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '>', 0) 
-                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
-                ->whereMonth('created_at', $month_filter)
-                ->whereYear('created_at', $year_filter)
-                ->orderBy('created_at', 'asc')
+                ->where(function($q) {
+                    $q->where(function($sub) {
+                        $sub->where('quantity', '>', 0)
+                            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
+                    })
+                    ->orWhere('department_name', 'DELIVERY');
+                })
+                ->whereMonth('updated_at', $month_filter)
+                ->whereYear('updated_at', $year_filter)
+                ->orderBy('updated_at', 'asc')
                 ->orderBy('id', 'asc') 
                 ->get();
 
+            $startOfMonth = $year_filter . '-' . $month_filter . '-01 00:00:00';
+
             $futureAndCurrentIssued = DepartmentRequest::where('supply_id', $supply->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '>', 0)
-                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
-                ->where('created_at', '>=', $year_filter . '-' . $month_filter . '-01 00:00:00')
+                ->where('quantity', '>', 0) 
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+                ->where('updated_at', '>=', $startOfMonth)
                 ->sum('quantity');
 
-            $balance_forwarded = $supply->quantity + $futureAndCurrentIssued;
+            $futureAndCurrentDeliveries = abs(DepartmentRequest::where('supply_id', $supply->id)
+                ->where('status', 'Approved')
+                ->where('department_name', 'DELIVERY')
+                ->where('updated_at', '>=', $startOfMonth)
+                ->sum('quantity'));
+
+            $balance_forwarded = $supply->quantity + $futureAndCurrentIssued - $futureAndCurrentDeliveries;
             $tempBalance = $balance_forwarded;
             $formattedReleases = collect();
             
             foreach ($releasesAsc as $release) {
-                $tempBalance -= $release->quantity;
+                if ($release->quantity < 0) {
+                    $tempBalance += abs($release->quantity);
+                } else {
+                    $tempBalance -= $release->quantity;
+                }
                 $release->running_balance = $tempBalance;
                 $formattedReleases->push($release); 
             }
@@ -980,16 +1084,23 @@ class SupplyController extends Controller
     {
         $item = Supply::findOrFail($id);
         
-        $releases = \App\Models\DepartmentRequest::where('supply_id', $item->id)
+        $transactionsQuery = \App\Models\DepartmentRequest::where('supply_id', $item->id)
             ->where('status', 'Approved')
-            ->where('quantity', '>', 0) 
-            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+            ->where(function($q) {
+                $q->where(function($sub) {
+                    $sub->where('quantity', '>', 0)
+                        ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
+                })
+                ->orWhere('department_name', 'DELIVERY');
+            })
             ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc')
             ->get();
 
-        $totalIssued = $releases->sum('quantity');
+        $totalIssuedEver = $transactionsQuery->where('quantity', '>', 0)->sum('quantity');
+        $totalDeliveriesEver = abs($transactionsQuery->where('quantity', '<', 0)->sum('quantity'));
         
-        $startingBalance = $item->quantity + $totalIssued;
+        $startingBalance = $item->quantity + $totalIssuedEver - $totalDeliveriesEver;
 
         $transactions = collect();
         $transactions->push([
@@ -1001,15 +1112,28 @@ class SupplyController extends Controller
         ]);
 
         $currentBalance = $startingBalance;
-        foreach ($releases as $release) {
-            $currentBalance -= $release->quantity;
-            $transactions->push([
-                'date' => $release->updated_at,
-                'department' => $release->department_name,
-                'delivery_qty' => '',
-                'qty_issued' => $release->quantity,
-                'balance' => $currentBalance
-            ]);
+        foreach ($transactionsQuery as $tx) {
+            $txDate = $tx->updated_at ?: $tx->created_at;
+            if ($tx->quantity < 0) {
+                $deliveryQty = abs($tx->quantity);
+                $currentBalance += $deliveryQty;
+                $transactions->push([
+                    'date' => $txDate,
+                    'department' => $tx->requested_by ?: 'Delivery',
+                    'delivery_qty' => $deliveryQty,
+                    'qty_issued' => '',
+                    'balance' => $currentBalance
+                ]);
+            } else {
+                $currentBalance -= $tx->quantity;
+                $transactions->push([
+                    'date' => $txDate,
+                    'department' => $tx->department_name,
+                    'delivery_qty' => '',
+                    'qty_issued' => $tx->quantity,
+                    'balance' => $currentBalance
+                ]);
+            }
         }
 
         return view('bincard', compact('item', 'transactions'));
@@ -1032,10 +1156,15 @@ class SupplyController extends Controller
         $currentYear = (int) date('Y');
 
         foreach ($items as $item) {
-            $releasesThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
+            $transactionsThisYear = \App\Models\DepartmentRequest::where('supply_id', $item->id)
                 ->where('status', 'Approved')
-                ->where('quantity', '>', 0) 
-                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT'])
+                ->where(function($q) {
+                    $q->where(function($sub) {
+                        $sub->where('quantity', '>', 0)
+                            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY']);
+                    })
+                    ->orWhere('department_name', 'DELIVERY');
+                })
                 ->whereYear('updated_at', $currentYear)
                 ->get();
 
@@ -1048,11 +1177,19 @@ class SupplyController extends Controller
                     $monthlyBalances[$m] = ''; 
                 } 
                 else {
-                    $releasesAfterM = $releasesThisYear->filter(function($req) use ($m) {
-                        return \Carbon\Carbon::parse($req->updated_at)->month > $m;
+                    $endOfMonth = \Carbon\Carbon::createFromDate($currentYear, $m, 1)->endOfMonth();
+
+                    $issuancesAfterM = $transactionsThisYear->filter(function($req) use ($endOfMonth) {
+                        $txDate = $req->updated_at ?: $req->created_at;
+                        return $req->quantity > 0 && \Carbon\Carbon::parse($txDate) > $endOfMonth;
                     })->sum('quantity');
 
-                    $monthlyBalances[$m] = $item->quantity + $releasesAfterM;
+                    $deliveriesAfterM = abs($transactionsThisYear->filter(function($req) use ($endOfMonth) {
+                        $txDate = $req->updated_at ?: $req->created_at;
+                        return $req->quantity < 0 && \Carbon\Carbon::parse($txDate) > $endOfMonth;
+                    })->sum('quantity'));
+
+                    $monthlyBalances[$m] = $item->quantity + $issuancesAfterM - $deliveriesAfterM;
                 }
             }
             $item->monthly_balances = $monthlyBalances;

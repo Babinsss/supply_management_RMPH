@@ -132,11 +132,12 @@
         <thead>
             <tr>
                 <th width="4%">#</th>
-                <th width="31%" class="text-left">ITEM DESCRIPTION</th>
-                <th width="14%">CATEGORY</th>
-                <th width="7%">UNIT</th>
-                <th width="12%">BEGINNING BALANCE</th>
-                <th width="12%">ITEMS ISSUED</th>
+                <th width="28%" class="text-left">ITEM DESCRIPTION</th>
+                <th width="13%">CATEGORY</th>
+                <th width="6%">UNIT</th>
+                <th width="10%">BEGINNING BALANCE</th>
+                <th width="9%">RECEIVED</th>
+                <th width="10%">ITEMS ISSUED</th>
                 <th width="10%">AVAILABLE STOCK</th>
                 <th width="10%">STATUS</th>
             </tr>
@@ -168,9 +169,14 @@
                 <td>{{ $item->category ?: 'UNCATEGORIZED' }}</td>
                 <td>{{ $item->unit }}</td>
 
-                {{-- NEW: Beginning Balance --}}
+                {{-- Beginning Balance --}}
                 <td style="background-color: #f9f9f9;"><strong>{{ $item->beginning_balance ?? $item->quantity }}</strong></td>
                 
+                {{-- Received / New Deliveries --}}
+                <td style="color: {{ ($item->deliveries_sum_quantity ?? 0) > 0 ? '#107c41' : '#888' }};">
+                    <strong>{{ ($item->deliveries_sum_quantity ?? 0) > 0 ? $item->deliveries_sum_quantity : '-' }}</strong>
+                </td>
+
                 {{-- Items Issued (Calculated by withSum logic in Controller) --}}
                 <td><strong>{{ $item->department_requests_sum_quantity ?? 0 }}</strong></td>
                 
@@ -190,7 +196,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="8" style="padding: 20px;">No inventory records found for this period.</td>
+                <td colspan="9" style="padding: 20px;">No inventory records found for this period.</td>
             </tr>
             @endforelse
         </tbody>

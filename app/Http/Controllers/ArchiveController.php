@@ -20,8 +20,13 @@ class ArchiveController extends Controller
 
         // Find supplies that had APPROVED ISSUANCES during this specific month/year
         $activeSupplyIds = DepartmentRequest::where('status', 'Approved')
-            ->whereYear('created_at', $year)
-            ->whereMonth('created_at', $month)
+            ->where(function($q) use ($year, $month) {
+                $q->where(function($sub) use ($year, $month) {
+                    $sub->whereYear('updated_at', $year)->whereMonth('updated_at', $month);
+                })->orWhere(function($sub) use ($year, $month) {
+                    $sub->whereYear('created_at', $year)->whereMonth('created_at', $month);
+                });
+            })
             ->pluck('supply_id')
             ->unique();
 
