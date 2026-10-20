@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>For Approval RIS (For Approval)</title>
+    <title>Purchase Requisition Form (PRF)</title>
     <style>
         @page { size: 8.5in 11in; margin: 0.5in; }
         body { font-family: Arial, sans-serif; color: #000; font-size: 13px; line-height: 1.4; margin: 0; padding: 20px; }
@@ -14,10 +14,10 @@
         .title p { margin: 5px 0 0; font-weight: bold; font-size: 14px; background: #f0f0f0; display: inline-block; padding: 3px 10px; border: 1px solid #000; }
         .info-table { width: 100%; margin-bottom: 20px; }
         .info-table td { padding: 5px; vertical-align: bottom; }
-        .item-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .item-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
         .item-table th, .item-table td { border: 1px solid #000; padding: 8px; text-align: center; }
-        .item-table th { background-color: #f8f8f8; }
-        .signatures { width: 100%; border-collapse: collapse; margin-top: 50px; }
+        .item-table th { background-color: #f8f8f8; font-size: 12px; }
+        .signatures { width: 100%; border-collapse: collapse; margin-top: 35px; }
         .signatures td { width: 33%; text-align: center; padding: 0 15px; }
         .sig-line { border-bottom: 1px solid #000; height: 40px; margin-bottom: 5px; display: flex; align-items: flex-end; justify-content: center; font-weight: bold; font-size: 12px; text-transform: uppercase; }
         @media print { body { padding: 0; } }
@@ -54,37 +54,23 @@
             </tr>
         </thead>
         <tbody>
-            @php 
-                $itemCount = count($data['item_name']);
-                $maxRows = 10; // Matches your 10-item limit
-            @endphp
-
-            @for ($i = 0; $i < $maxRows; $i++)
+            @foreach ($data['item_name'] as $i => $itemName)
                 <tr>
-                    @if(isset($data['item_name'][$i]))
-                        {{-- Render submitted item data --}}
-                        <td style="font-weight: bold; font-size: 14px; height: 25px;">{{ $data['quantity'][$i] }}</td>
-                        <td style="text-align: left; padding-left: 15px; font-weight: bold;">{{ strtoupper($data['item_name'][$i]) }}</td>
-                        <td></td>
-                        <td></td>
-                    @else
-                        {{-- Render empty rows to keep the table height consistent --}}
-                        <td style="height: 25px;"></td>
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    @endif
+                    <td style="font-weight: bold; font-size: 14px; height: 26px;">{{ $data['quantity'][$i] ?? 1 }}</td>
+                    <td style="text-align: left; padding-left: 15px; font-weight: bold;">{{ strtoupper($itemName) }}</td>
+                    <td></td>
+                    <td></td>
                 </tr>
-            @endfor
+            @endforeach
 
             {{-- Grand Total Row --}}
             <tr>
-                <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 15px;">GRAND TOTAL:</td>
+                <td colspan="3" style="text-align: right; font-weight: bold; padding-right: 15px; height: 26px;">GRAND TOTAL:</td>
                 <td></td> {{-- Blank for handwritten input --}}
             </tr>
 
             <tr>
-                <td colspan="4" style="text-align: left; padding: 15px; height: 50px; vertical-align: top;">
+                <td colspan="4" style="text-align: left; padding: 15px; min-height: 45px; vertical-align: top;">
                     <strong>Purpose / Remarks:</strong><br>
                     {{ $data['purpose'] }}
                 </td>
