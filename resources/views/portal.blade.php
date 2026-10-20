@@ -298,6 +298,11 @@
                 </div>
                 
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase"><i class="bi bi-calendar3 me-1"></i> Request Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control input-modern" name="request_date" id="pcRequestDate" value="{{ date('Y-m-d') }}" required>
+                    </div>
+
                     <div class="alert alert-warning border-0 rounded-3 py-2 small fw-bold mb-3 shadow-sm">
                         <i class="bi bi-info-circle-fill me-1"></i> Use this form to request items NOT in the standard inventory directory.
                     </div>

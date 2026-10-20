@@ -40,7 +40,7 @@
             <td style="width: 12%;"><strong>Department:</strong></td>
             <td style="border-bottom: 1px solid #000; width: 45%;">{{ strtoupper($data['department_name']) }}</td>
             <td style="width: 8%; text-align: right; padding-right: 10px;"><strong>Date:</strong></td>
-            <td style="border-bottom: 1px solid #000; width: 35%;">{{ \Carbon\Carbon::now()->format('F d, Y') }}</td>
+            <td style="border-bottom: 1px solid #000; width: 35%;">{{ !empty($data['request_date']) ? \Carbon\Carbon::parse($data['request_date'])->format('F d, Y') : \Carbon\Carbon::now()->format('F d, Y') }}</td>
         </tr>
     </table>
 
@@ -97,3 +97,4 @@
 
 </body>
 </html>
+

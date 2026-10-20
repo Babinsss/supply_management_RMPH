@@ -1203,6 +1203,7 @@ class SupplyController extends Controller
         $data = $request->validate([
             'department_name' => 'required|string',
             'requested_by' => 'required|string',
+            'request_date' => 'nullable|date',
             'item_name' => 'required|array|min:1|max:10', 
             'item_name.*' => 'required|string',
             'quantity' => 'required|array|min:1|max:10',  
