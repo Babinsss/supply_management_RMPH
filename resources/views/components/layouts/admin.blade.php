@@ -128,8 +128,14 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('petty-cash') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/petty-cash">
+                                <a class="dropdown-item rounded-3 fw-bold mb-1 {{ request()->is('petty-cash') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/petty-cash">
                                     <i class="bi bi-wallet2 me-2 {{ request()->is('petty-cash') ? 'text-primary' : 'text-muted' }}"></i> Petty Cash
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider my-2"></li>
+                            <li>
+                                <a class="dropdown-item rounded-3 fw-bold {{ request()->is('superadmin/backups*') ? 'bg-primary bg-opacity-10 text-primary' : 'text-dark' }}" href="/superadmin/backups">
+                                    <i class="bi bi-database-down me-2 {{ request()->is('superadmin/backups*') ? 'text-primary' : 'text-muted' }}"></i> Database Backups
                                 </a>
                             </li>
                         </ul>

@@ -98,6 +98,12 @@ Route::middleware(['auth', 'role:superadmin'])->prefix('superadmin')->group(func
     
     // RESTORE ROUTE SECURED HERE
     Route::post('/supply/restore/{id}', [App\Http\Controllers\SupplyController::class, 'restoreItem']);
+
+    // DATABASE BACKUPS (Superadmin Only)
+    Route::get('/backups', [App\Http\Controllers\SuperAdminController::class, 'backups'])->name('superadmin.backups');
+    Route::post('/backups/create', [App\Http\Controllers\SuperAdminController::class, 'createBackup'])->name('superadmin.backups.create');
+    Route::get('/backups/download/{filename}', [App\Http\Controllers\SuperAdminController::class, 'downloadBackup'])->name('superadmin.backups.download');
+    Route::delete('/backups/delete/{filename}', [App\Http\Controllers\SuperAdminController::class, 'deleteBackup'])->name('superadmin.backups.delete');
 });
 
 /*

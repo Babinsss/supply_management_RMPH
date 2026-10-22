@@ -175,4 +175,107 @@ class SuperAdminController extends Controller
 
         return view('superadmin.ris_archive', compact('requests'));
     }
+
+    public function backups()
+    {
+        $storagePath = storage_path('app/backups');
+        if (!file_exists($storagePath)) {
+            mkdir($storagePath, 0755, true);
+        }
+
+        $files = \Illuminate\Support\Facades\File::files($storagePath);
+        $backups = collect();
+        $totalBytes = 0;
+
+        foreach ($files as $file) {
+            $name = $file->getFilename();
+            // Skip non-sql files or hidden files
+            if (!str_ends_with($name, '.sql')) continue;
+
+            $bytes = $file->getSize();
+            // Skip 0-byte or tiny error files
+            if ($bytes < 1024) continue;
+
+            $totalBytes += $bytes;
+            $mtime = \Carbon\Carbon::createFromTimestamp($file->getMTime())->timezone('Asia/Manila');
+
+            $backups->push([
+                'filename' => $name,
+                'size_bytes' => $bytes,
+                'size_formatted' => $bytes >= 1048576 
+                    ? number_format($bytes / 1048576, 2) . ' MB' 
+                    : number_format($bytes / 1024, 1) . ' KB',
+                'created_at' => $mtime,
+                'age_days' => $mtime->diffInDays(now()->timezone('Asia/Manila')),
+            ]);
+        }
+
+        $backups = $backups->sortByDesc('created_at')->values();
+        $latest = $backups->first();
+        $isToday = $latest && $latest['created_at']->isToday();
+
+        $stats = [
+            'count' => $backups->count(),
+            'total_size' => $totalBytes >= 1048576 
+                ? number_format($totalBytes / 1048576, 2) . ' MB' 
+                : number_format($totalBytes / 1024, 1) . ' KB',
+            'latest' => $latest,
+            'is_protected' => $isToday,
+        ];
+
+        return view('superadmin.backups', compact('backups', 'stats'));
+    }
+
+    public function createBackup()
+    {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('db:backup', ['--manual' => true]);
+            $output = trim(\Illuminate\Support\Facades\Artisan::output());
+
+            return redirect()->route('superadmin.backups')
+                ->with('success', 'Fresh database backup created successfully! ' . $output);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Manual backup failed: ' . $e->getMessage());
+            return redirect()->route('superadmin.backups')
+                ->with('danger', 'Failed to create backup: ' . $e->getMessage());
+        }
+    }
+
+    public function downloadBackup($filename)
+    {
+        // Security: strictly validate filename format
+        if (!preg_match('/^rmph_backup_[a-zA-Z0-9_\-]+\.sql$/', $filename)) {
+            abort(400, 'Invalid backup file name.');
+        }
+
+        $filePath = storage_path('app/backups/' . $filename);
+        if (!file_exists($filePath)) {
+            return redirect()->route('superadmin.backups')
+                ->with('danger', 'The requested backup file does not exist.');
+        }
+
+        ActivityLog::log('Database Backup', "Downloaded database backup: {$filename}");
+
+        return response()->download($filePath, $filename, [
+            'Content-Type' => 'application/sql'
+        ]);
+    }
+
+    public function deleteBackup($filename)
+    {
+        if (!preg_match('/^rmph_backup_[a-zA-Z0-9_\-]+\.sql$/', $filename)) {
+            abort(400, 'Invalid backup file name.');
+        }
+
+        $filePath = storage_path('app/backups/' . $filename);
+        if (file_exists($filePath)) {
+            @unlink($filePath);
+            ActivityLog::log('Database Backup', "Deleted backup file: {$filename}");
+            return redirect()->route('superadmin.backups')
+                ->with('success', "Backup file {$filename} has been deleted.");
+        }
+
+        return redirect()->route('superadmin.backups')
+            ->with('danger', 'File not found.');
+    }
 }
