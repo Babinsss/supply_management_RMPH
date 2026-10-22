@@ -108,6 +108,17 @@
                         <div class="text-muted-soft small"><i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</div>
                     </div>
 
+                    @php
+                        $batchPurpose = $batch['purpose'] ?? ($batch['items'][0]->purpose ?? null);
+                    @endphp
+                    @if(!empty($batchPurpose))
+                        <div class="p-2 px-3 rounded-3 bg-white border border-secondary-subtle mb-3 small d-flex align-items-center gap-2 shadow-xs">
+                            <i class="bi bi-chat-quote-fill text-primary opacity-75"></i>
+                            <span class="text-muted fw-bold text-uppercase" style="font-size: 0.7rem; flex-shrink: 0;">Reason:</span>
+                            <span class="text-dark fw-semibold text-truncate" title="{{ $batchPurpose }}">{{ $batchPurpose }}</span>
+                        </div>
+                    @endif
+
                     {{-- Smart Warning Badges --}}
                     @if($batch['status'] == 'Pending')
                         <div class="d-flex gap-2 mb-3">

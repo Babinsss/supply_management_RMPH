@@ -556,10 +556,20 @@
             updateUI();
         }
 
+        let isCartSubmitting = false;
         function validateCart() {
+            if (isCartSubmitting) {
+                return false;
+            }
             if(cart.length === 0) { 
                 showToast(`<i class="bi bi-info-circle-fill me-2"></i> Please add at least one item to submit a request.`, 'warning text-dark');
                 return false; 
+            }
+            isCartSubmitting = true;
+            const submitBtn = document.querySelector('#requisitionForm button[type="submit"]');
+            if(submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
             }
             return true;
         }
@@ -658,3 +668,5 @@
     </script>
 </body>
 </html>
+
+

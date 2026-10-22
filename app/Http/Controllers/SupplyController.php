@@ -97,6 +97,8 @@ class SupplyController extends Controller
                     'created_at' => $req->created_at,
                     'department_name' => $req->department_name,
                     'requested_by' => $req->requested_by,
+                    'purpose' => $req->purpose,
+                    'is_emergency' => $req->is_emergency,
                     'status' => $req->status,
                     'items' => []
                 ];
@@ -567,6 +569,25 @@ class SupplyController extends Controller
             $purpose = '[EMERGENCY] ' . $purpose;
         }
 
+        // Prevent duplicate submissions within 60 seconds
+        $recentDuplicate = DepartmentRequest::where('department_name', $dept)
+            ->where('requested_by', $person)
+            ->where('created_at', '>=', now()->subSeconds(60))
+            ->where('status', 'Pending')
+            ->first();
+
+        if ($recentDuplicate) {
+            $recentBatchReqs = DepartmentRequest::where('batch_id', $recentDuplicate->batch_id)->get();
+            $recentItems = $recentBatchReqs->map(fn($r) => $r->supply_id . ':' . $r->quantity)->sort()->values()->all();
+            $newItems = collect($cartData)->map(fn($i) => ((int)$i['id']) . ':' . ((int)$i['qty']))->sort()->values()->all();
+
+            if ($recentItems === $newItems) {
+                return redirect()->route('portal')
+                    ->with('success', 'Your request has already been submitted to the Supply Section.')
+                    ->with('batch_id', $recentDuplicate->batch_id);
+            }
+        }
+
         $batchId = (string) Str::uuid();
 
         foreach ($cartData as $item) {
@@ -935,6 +956,8 @@ class SupplyController extends Controller
                     'created_at' => $req->created_at,
                     'department_name' => $req->department_name,
                     'requested_by' => $req->requested_by,
+                    'purpose' => $req->purpose,
+                    'is_emergency' => $req->is_emergency,
                     'status' => $req->status,
                     'items' => []
                 ];

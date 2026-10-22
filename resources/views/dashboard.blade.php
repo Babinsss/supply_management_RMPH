@@ -61,7 +61,19 @@
                                 <span class="badge {{ $batch['status'] == 'Pending' ? 'bg-warning text-dark' : ($batch['status'] == 'Approved' ? 'bg-success' : 'bg-danger') }}">{{ $batch['status'] }}</span>
                             </div>
                             
-                            <p class="text-muted small mb-3"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
+                            <p class="text-muted small mb-2"><i class="bi bi-calendar-event me-2"></i>{{ \Carbon\Carbon::parse($batch['created_at'] ?? now())->timezone('Asia/Manila')->format('F d, Y - h:i A') }} | <i class="bi bi-person me-1"></i> {{ $batch['requested_by'] }}</p>
+                            
+                            @php
+                                $batchPurpose = $batch['purpose'] ?? ($batch['items'][0]->purpose ?? null);
+                            @endphp
+
+                            @if(!empty($batchPurpose))
+                                <div class="p-2 px-3 rounded-3 bg-white bg-opacity-75 border border-secondary-subtle mb-3 small d-flex align-items-center gap-2 shadow-xs">
+                                    <i class="bi bi-chat-quote-fill text-primary opacity-75"></i>
+                                    <span class="text-muted fw-bold text-uppercase" style="font-size: 0.72rem; flex-shrink: 0;">Reason:</span>
+                                    <span class="text-dark fw-semibold text-break">{{ $batchPurpose }}</span>
+                                </div>
+                            @endif
                             
                             <div class="d-flex flex-wrap gap-2 mb-3">
                                 {{-- 1. Always show the first 3 items --}}
@@ -147,7 +159,17 @@
                                         <i class="bi bi-exclamation-triangle-fill me-1"></i> Heads up! Some items in this request are already out of stock.
                                     </div>
                                 @else
-                                    <p class="text-muted-soft small mb-4">Adjust quantities before issuing. You cannot exceed stock.</p>
+                                    <p class="text-muted-soft small mb-3">Adjust quantities before issuing. You cannot exceed stock.</p>
+                                @php
+                                    $batchPurpose = $batch['purpose'] ?? ($batch['items'][0]->purpose ?? null);
+                                @endphp
+
+                                @if(!empty($batchPurpose))
+                                    <div class="alert alert-light border border-secondary-subtle rounded-3 py-2 px-3 small mb-3 shadow-sm">
+                                        <div class="text-muted small fw-bold text-uppercase"><i class="bi bi-chat-quote-fill text-primary me-1"></i> Reason for Request:</div>
+                                        <div class="text-dark fw-semibold mt-1">{{ $batchPurpose }}</div>
+                                    </div>
+                                @endif
                                 @endif
 
                                 @foreach($batch['items'] as $req)
