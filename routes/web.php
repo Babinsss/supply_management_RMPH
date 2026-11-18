@@ -62,8 +62,11 @@ Route::middleware(['auth', 'role:admin,forms_admin,superadmin'])->group(function
     Route::get('/rapc/{id}', [SupplyController::class, 'rapc']);
 
     // APIs
-    Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
     Route::get('/api/low-stock', [SupplyController::class, 'lowStockApi']);
+});
+
+Route::middleware(['auth', 'role:admin,forms_admin,superadmin,approver,coh'])->group(function () {
+    Route::get('/api/pending-count', [SupplyController::class, 'pendingCountApi']);
 });
 
 /*

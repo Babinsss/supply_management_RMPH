@@ -336,9 +336,14 @@
             // 4. QUEUE LIVE UPDATE
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
-                fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()).then(data => {
-                    if (data.count !== currentCount && !document.querySelector('.modal.show')) location.reload(); 
-                });
+                fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (data && typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) {
+                            location.reload();
+                        }
+                    })
+                    .catch(() => {});
             }, 5000);
 
             // 5. CUSTOM TIMELINE FILTER

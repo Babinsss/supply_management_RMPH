@@ -199,10 +199,11 @@
                                             @if($item->description)
                                                 <div class="text-muted text-uppercase mb-1" style="font-size: 0.70rem; letter-spacing: 0.5px;">{{ $item->description }}</div>
                                             @endif
-                                            <div class="text-muted-soft d-flex flex-column" style="font-size: 0.65rem;">
-                                                @if($item->supplier) <span><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span> @endif
-                                                <span class="text-primary fw-bold">{{ $item->quantity }} {{ $item->unit ?? 'pcs' }} available</span>
-                                            </div>
+                                            @if($item->supplier)
+                                                <div class="text-muted-soft d-flex flex-column" style="font-size: 0.65rem;">
+                                                    <span><i class="bi bi-truck me-1"></i>{{ $item->supplier }}</span>
+                                                </div>
+                                            @endif
                                         </div>
                                         
                                         <div class="text-end d-flex flex-column align-items-end gap-2">

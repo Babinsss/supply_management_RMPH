@@ -316,6 +316,36 @@
         }
 
         /* =========================
+           REMEMBER ME
+        ========================= */
+
+        .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: -4px 0 20px;
+        }
+
+        .remember-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .remember-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #2563eb;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        /* =========================
            SIGN IN BUTTON
         ========================= */
 
@@ -608,6 +638,21 @@
                         </div>
                     @enderror
 
+                </div>
+
+
+                {{-- Keep Me Signed In --}}
+                <div class="remember-row">
+                    <label for="remember" class="remember-label">
+                        <input
+                            type="checkbox"
+                            name="remember"
+                            id="remember"
+                            class="remember-checkbox"
+                            {{ old('remember', true) ? 'checked' : '' }}
+                        >
+                        <span>Keep me signed in</span>
+                    </label>
                 </div>
 
 

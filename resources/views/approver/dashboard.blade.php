@@ -254,14 +254,15 @@
             // Live Server Ping
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
-                fetch('/api/pending-count')
-                    .then(r => r.json())
+                fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         // Don't reload if they are actively looking at a modal
-                        if (data.count !== currentCount && !document.querySelector('.modal.show')) { 
+                        if (data && typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) { 
                             location.reload(); 
                         }
-                    });
+                    })
+                    .catch(() => {});
             }, 5000);
 
             // Bento Grid Search Filter
