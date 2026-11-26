@@ -36,12 +36,18 @@ class SupplyController extends Controller
             });
         }
 
-        $supplies = $supplyQuery->get()->groupBy('name')->map(function ($group) {
+        $supplies = $supplyQuery->get()->groupBy(function ($item) {
+            return strtolower(trim($item->name));
+        })->map(function ($group) {
             $first = $group->first();
             $first->quantity = $group->sum('quantity');
             $first->ris_number = $group->pluck('ris_number')->map(function($v) { return trim($v); })->filter()->unique()->implode(', ');
             return $first;
         })->values();
+
+        $combinedStockMap = $supplies->mapWithKeys(function ($item) {
+            return [strtolower(trim($item->name)) => (int) $item->quantity];
+        });
 
         $criticalSupplies = $supplies->filter(function($item) {
             return $item->quantity <= $item->reorder_level;
@@ -72,7 +78,10 @@ class SupplyController extends Controller
             $chartData[] = $reqsQuery->distinct('batch_id')->count('batch_id');
         }
 
-        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
+        $allRequests = DepartmentRequest::with([
+                'supply' => function ($q) { $q->withTrashed(); },
+                'issuer'
+            ])
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
             ->where('batch_id', 'not like', 'ADJ-%')
             ->where('batch_id', 'not like', 'DEL-%')
@@ -108,13 +117,17 @@ class SupplyController extends Controller
 
         foreach ($groupedBatches as $key => $batch) {
             $hasPending = false;
+            $hasApproved = false;
             foreach ($batch['items'] as $item) {
                 if ($item->status === 'Pending') {
                     $hasPending = true;
                     break;
                 }
+                if ($item->status === 'Approved') {
+                    $hasApproved = true;
+                }
             }
-            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : 'Processed';
+            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : ($hasApproved ? 'Approved' : 'Denied');
         }
 
         $requestsToDisplay = array_values($groupedBatches);
@@ -140,7 +153,8 @@ class SupplyController extends Controller
             'low_stock_count' => $lowStockCount,
             'chartDates' => $chartDates,
             'chartData' => $chartData,
-            'criticalSupplies' => $criticalSupplies
+            'criticalSupplies' => $criticalSupplies,
+            'combinedStockMap' => $combinedStockMap,
         ]);
     }
 
@@ -336,22 +350,29 @@ class SupplyController extends Controller
     {
         $role = strtolower(trim(Auth::user()->role));
         
-        $allReqs = DepartmentRequest::with('supply')->where('batch_id', $batch_id)->get();
+        $allReqs = DepartmentRequest::with(['supply' => function ($q) { $q->withTrashed(); }])
+            ->where('batch_id', $batch_id)
+            ->get();
         $batchReqs = collect();
 
         foreach ($allReqs as $req) {
             $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
             $isForm = (strpos($cat, 'FORM') !== false);
             
-            if ($role === 'forms_admin' && $isForm) $batchReqs->push($req);
-            if ($role === 'admin' && !$isForm) $batchReqs->push($req);
+            if ($role === 'superadmin') {
+                $batchReqs->push($req);
+            } elseif ($role === 'forms_admin' && $isForm) {
+                $batchReqs->push($req);
+            } elseif ($role === 'admin' && !$isForm) {
+                $batchReqs->push($req);
+            }
         }
 
         if ($batchReqs->isEmpty()) {
             return redirect()->back()->with('danger', 'No authorized items found for approval in this request.');
         }
 
-        $pendingReqs = $batchReqs->where('status', 'Pending');
+        $pendingReqs = $batchReqs->where('status', 'Pending')->values();
         
         if ($pendingReqs->isEmpty()) {
             return redirect()->back()->with('danger', 'These specific items have already been processed.');
@@ -361,8 +382,11 @@ class SupplyController extends Controller
         $batchTime = $pendingReqs->first()->created_at;
         
         if (!$isEmergency && $role === 'admin') {
-            $allPending = DepartmentRequest::with('supply')
+            $allPending = DepartmentRequest::with(['supply' => function ($q) { $q->withTrashed(); }])
                 ->where('status', 'Pending')
+                ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+                ->where('batch_id', 'not like', 'ADJ-%')
+                ->where('batch_id', 'not like', 'DEL-%')
                 ->where('created_at', '<', $batchTime)
                 ->orderBy('created_at', 'asc')
                 ->get();
@@ -384,62 +408,92 @@ class SupplyController extends Controller
             }
         }
 
+        $adjustedQuantities = [];
         foreach ($pendingReqs as $req) {
             $adjQty = $request->input("qty_{$req->id}");
-            if ($adjQty !== null) {
-                $req->quantity = (int)$adjQty;
-            }
+            $qty = $adjQty !== null ? max(0, (int) $adjQty) : max(0, (int) $req->quantity);
+            $adjustedQuantities[$req->id] = $qty;
         }
 
         $supplySums = [];
+        $displayNames = [];
         foreach ($pendingReqs as $req) {
-            $name = $req->supply->name;
-            if (!isset($supplySums[$name])) {
-                $supplySums[$name] = 0;
+            $qty = $adjustedQuantities[$req->id];
+            if ($qty <= 0) {
+                continue;
             }
-            $supplySums[$name] += $req->quantity;
+
+            if (!$req->supply) {
+                return redirect()->back()->with('danger', 'Cannot approve! One of the requested items no longer exists in inventory.');
+            }
+
+            $rawName = trim($req->supply->name);
+            $normKey = strtolower($rawName);
+            $displayNames[$normKey] = $rawName;
+            $supplySums[$normKey] = ($supplySums[$normKey] ?? 0) + $qty;
         }
 
-        foreach ($supplySums as $name => $totalRequested) {
-            $combinedStock = Supply::where('name', $name)->sum('quantity');
+        foreach ($supplySums as $normKey => $totalRequested) {
+            $combinedStock = Supply::whereRaw('LOWER(TRIM(name)) = ?', [$normKey])->sum('quantity');
             if ($combinedStock < $totalRequested) {
-                return redirect()->back()->with('danger', "Cannot approve! Total requested for {$name} ({$totalRequested}) exceeds available combined stock ({$combinedStock}).");
+                $label = $displayNames[$normKey];
+                return redirect()->back()->with('danger', "Cannot approve! Total requested for {$label} ({$totalRequested}) exceeds available combined stock ({$combinedStock}).");
             }
         }
         
-        DB::transaction(function () use ($pendingReqs) {
-            foreach ($pendingReqs as $req) {
-                $remainingToDeduct = $req->quantity;
-                
-                if ($remainingToDeduct <= 0) {
-                    if (!empty($req->id)) {
+        try {
+            DB::transaction(function () use ($pendingReqs, $adjustedQuantities) {
+                $pendingIds = $pendingReqs->pluck('id')->all();
+                $lockedReqs = DepartmentRequest::with(['supply' => function ($q) { $q->withTrashed(); }])
+                    ->whereIn('id', $pendingIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($pendingIds as $reqId) {
+                    $lockedReq = $lockedReqs->get($reqId);
+                    if (!$lockedReq || $lockedReq->status !== 'Pending') {
+                        throw new \RuntimeException('This request was already processed in another window or request.');
+                    }
+                }
+
+                foreach ($pendingIds as $reqId) {
+                    $req = $lockedReqs->get($reqId);
+                    $remainingToDeduct = $adjustedQuantities[$reqId] ?? 0;
+                    
+                    if ($remainingToDeduct <= 0) {
                         DB::table('department_requests')->where('id', $req->id)->update([
                             'status' => 'Denied',
                             'quantity' => 0,
                             'updated_at' => now()
                         ]);
+                        continue; 
                     }
-                    continue; 
-                }
-                
-                $itemName = $req->supply->name;
-                
-                $matchingSupplies = Supply::where('name', $itemName)
-                    ->where('quantity', '>', 0)
-                    ->orderBy('created_at', 'asc')
-                    ->get();
-                
-                $firstMatch = true;
-                
-                foreach ($matchingSupplies as $supply) {
-                    if ($remainingToDeduct <= 0) break;
                     
-                    $deductAmount = min($supply->quantity, $remainingToDeduct);
-                    $supply->quantity -= $deductAmount;
-                    $supply->save();
+                    $itemName = trim($req->supply->name);
+                    $normKey = strtolower($itemName);
                     
-                    if ($firstMatch) {
-                        if (!empty($req->id)) {
+                    $matchingSupplies = Supply::whereRaw('LOWER(TRIM(name)) = ?', [$normKey])
+                        ->where('quantity', '>', 0)
+                        ->orderBy('created_at', 'asc')
+                        ->lockForUpdate()
+                        ->get();
+
+                    $availableNow = $matchingSupplies->sum('quantity');
+                    if ($availableNow < $remainingToDeduct) {
+                        throw new \RuntimeException("Cannot approve! Available stock for {$itemName} changed to {$availableNow} while processing (requested {$remainingToDeduct}).");
+                    }
+                    
+                    $firstMatch = true;
+                    
+                    foreach ($matchingSupplies as $supply) {
+                        if ($remainingToDeduct <= 0) break;
+                        
+                        $deductAmount = min($supply->quantity, $remainingToDeduct);
+                        $supply->quantity -= $deductAmount;
+                        $supply->save();
+                        
+                        if ($firstMatch) {
                             DB::table('department_requests')->where('id', $req->id)->update([
                                 'supply_id' => $supply->id,
                                 'quantity' => $deductAmount,
@@ -447,28 +501,30 @@ class SupplyController extends Controller
                                 'issued_by' => Auth::id(),
                                 'updated_at' => now()
                             ]);
+                            $firstMatch = false;
+                        } else {
+                            DepartmentRequest::create([
+                                'batch_id' => $req->batch_id,
+                                'department_name' => $req->department_name,
+                                'requested_by' => $req->requested_by,
+                                'supply_id' => $supply->id,
+                                'quantity' => $deductAmount,
+                                'purpose' => $req->purpose,
+                                'is_emergency' => $req->is_emergency,
+                                'status' => 'Approved',
+                                'issued_by' => Auth::id(),
+                                'created_at' => $req->created_at,
+                                'updated_at' => now()
+                            ]);
                         }
-                        $firstMatch = false;
-                    } else {
-                        DepartmentRequest::create([
-                            'batch_id' => $req->batch_id,
-                            'department_name' => $req->department_name,
-                            'requested_by' => $req->requested_by,
-                            'supply_id' => $supply->id,
-                            'quantity' => $deductAmount,
-                            'purpose' => $req->purpose,
-                            'is_emergency' => $req->is_emergency,
-                            'status' => 'Approved',
-                            'issued_by' => Auth::id(),
-                            'created_at' => $req->created_at,
-                            'updated_at' => now()
-                        ]);
+                        
+                        $remainingToDeduct -= $deductAmount;
                     }
-                    
-                    $remainingToDeduct -= $deductAmount;
                 }
-            }
-        });
+            });
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->with('danger', $e->getMessage());
+        }
 
         $departmentName = $pendingReqs->first()->department_name;
         \App\Models\ActivityLog::log('Supply Issuance', "Approved and issued request {$batch_id} to {$departmentName}");
@@ -480,18 +536,31 @@ class SupplyController extends Controller
     {
         $role = strtolower(trim(Auth::user()->role));
         
-        $allReqs = DepartmentRequest::with('supply')->where('batch_id', $batch_id)->get();
+        $allReqs = DepartmentRequest::with(['supply' => function ($q) { $q->withTrashed(); }])
+            ->where('batch_id', $batch_id)
+            ->get();
         $batchReqs = collect();
 
         foreach ($allReqs as $req) {
             $cat = $req->supply ? strtoupper(trim($req->supply->category ?? '')) : '';
             $isForm = (strpos($cat, 'FORM') !== false);
             
-            if ($role === 'forms_admin' && $isForm) $batchReqs->push($req);
-            if ($role === 'admin' && !$isForm) $batchReqs->push($req);
+            if ($role === 'superadmin') {
+                $batchReqs->push($req);
+            } elseif ($role === 'forms_admin' && $isForm) {
+                $batchReqs->push($req);
+            } elseif ($role === 'admin' && !$isForm) {
+                $batchReqs->push($req);
+            }
         }
 
-        foreach ($batchReqs as $req) {
+        $pendingReqs = $batchReqs->where('status', 'Pending');
+
+        if ($pendingReqs->isEmpty()) {
+            return redirect()->back()->with('danger', 'These specific items have already been processed.');
+        }
+
+        foreach ($pendingReqs as $req) {
             if (!empty($req->id)) {
                 DB::table('department_requests')->where('id', $req->id)->update([
                     'status' => 'Denied',
@@ -500,10 +569,8 @@ class SupplyController extends Controller
             }
         }
 
-        if ($batchReqs->isNotEmpty()) {
-            $departmentName = $batchReqs->first()->department_name;
-            \App\Models\ActivityLog::log('Supply Issuance', "Denied request {$batch_id} for {$departmentName}");
-        }
+        $departmentName = $pendingReqs->first()->department_name;
+        \App\Models\ActivityLog::log('Supply Issuance', "Denied request {$batch_id} for {$departmentName}");
 
         return redirect()->back()->with('success', 'Your specific items in this request were denied. Stock remains unchanged.');
     }
@@ -521,52 +588,53 @@ class SupplyController extends Controller
         $categories = \App\Models\Category::where('is_active', true)->orderBy('name')->get();
         
         $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
-        $dayOfWeek = $now->dayOfWeekIso; 
-        $currentHour = $now->hour;       
-
-        if (in_array($dayOfWeek, [6, 7])) {
-            $portalMode = 'CLOSED_WEEKEND';
-        } elseif ($currentHour < 8 || $currentHour >= 17) {
-            $portalMode = 'CLOSED_OFF_HOURS';
-        } elseif (in_array($dayOfWeek, [1, 3])) {
-            $portalMode = 'NORMAL';
-        } else {
-            $portalMode = 'EMERGENCY_ONLY';
-        }
+        $portalMode = $this->getPortalMode($now);
         
         return view('portal', compact('supplies', 'departments', 'categories', 'portalMode'));
     }
 
+    private function getPortalMode(\Carbon\Carbon $now): string
+    {
+        $dayOfWeek = $now->dayOfWeekIso;
+        $currentHour = $now->hour;
+
+        if (in_array($dayOfWeek, [6, 7])) {
+            return 'CLOSED_WEEKEND';
+        }
+        if ($currentHour < 8 || $currentHour >= 17) {
+            return 'CLOSED_OFF_HOURS';
+        }
+        if (in_array($dayOfWeek, [1, 3])) {
+            return 'NORMAL';
+        }
+
+        return 'PRF_ONLY';
+    }
+
     public function submitRequest(Request $request)
     {
+        $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
+        $portalMode = $this->getPortalMode($now);
+
+        if ($portalMode === 'CLOSED_WEEKEND') {
+            return redirect()->route('portal')->with('danger', 'System is closed. No requests can be processed during the weekend.');
+        }
+        if ($portalMode === 'CLOSED_OFF_HOURS') {
+            return redirect()->route('portal')->with('danger', 'System is closed. Standard requesting is only available between 8:00 AM and 5:00 PM.');
+        }
+        if ($portalMode === 'PRF_ONLY') {
+            return redirect()->route('portal')->with('danger', 'Standard supply requesting is only available on Mondays and Wednesdays. Only Purchase Requisition Forms (PRF) are available today.');
+        }
+
         $dept = $request->input('department_name');
         $person = $request->input('requested_by');
         $purpose = $request->input('purpose');
-        $isEmergency = $request->input('is_emergency') == '1';
         $cartJson = $request->input('cart_data', '[]');
 
         $cartData = json_decode($cartJson, true) ?? [];
 
         if (empty($cartData)) {
             return redirect()->route('portal')->with('danger', 'Please add items to your cart before submitting.');
-        }
-
-        $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
-        $dayOfWeek = $now->dayOfWeekIso;
-        $currentHour = $now->hour;
-        
-        if (in_array($dayOfWeek, [6, 7])) {
-            return redirect()->route('portal')->with('danger', 'System is closed. No requests can be processed during the weekend.');
-        }
-        if ($currentHour < 8 || $currentHour >= 17) {
-            return redirect()->route('portal')->with('danger', 'System is closed. Standard requesting is only available between 8:00 AM and 5:00 PM.');
-        }
-        if (in_array($dayOfWeek, [2, 4, 5]) && !$isEmergency) {
-            return redirect()->route('portal')->with('danger', 'Today is restricted to Emergency Requests only. Please ensure the emergency justification is provided.');
-        }
-
-        if ($isEmergency) {
-            $purpose = '[EMERGENCY] ' . $purpose;
         }
 
         // Prevent duplicate submissions within 60 seconds
@@ -598,17 +666,13 @@ class SupplyController extends Controller
                 'supply_id' => (int)$item['id'],
                 'quantity' => (int)$item['qty'],
                 'purpose' => $purpose,
-                'is_emergency' => $isEmergency,
+                'is_emergency' => false,
                 'status' => 'Pending'
             ]);
         }
 
-        $msg = $isEmergency 
-            ? 'EMERGENCY OVERRIDE LOGGED: Your urgent request has been instantly flagged for the Supply Section.' 
-            : 'Your standard request has been successfully submitted to the Supply Section.';
-
         return redirect()->route('portal')
-            ->with('success', $msg)
+            ->with('success', 'Your standard request has been successfully submitted to the Supply Section.')
             ->with('batch_id', $batchId);
     }
 
@@ -633,7 +697,12 @@ class SupplyController extends Controller
     public function pendingCountApi()
     {
         $role = strtolower(trim(Auth::user()->role));
-        $allPending = DepartmentRequest::with('supply')->where('status', 'Pending')->get();
+        $allPending = DepartmentRequest::with(['supply' => function ($q) { $q->withTrashed(); }])
+            ->where('status', 'Pending')
+            ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
+            ->where('batch_id', 'not like', 'ADJ-%')
+            ->where('batch_id', 'not like', 'DEL-%')
+            ->get();
         
         $countedBatches = [];
         $count = 0;
@@ -651,7 +720,10 @@ class SupplyController extends Controller
             }
         }
         
-        return response()->json(['count' => $count]);
+        return response()->json([
+            'count' => $count,
+            'csrf_token' => csrf_token(),
+        ]);
     }
     
     public function inventory() 
@@ -933,7 +1005,10 @@ class SupplyController extends Controller
             return $key === 'All Departments';
         })->sort()->values();
 
-        $allRequests = DepartmentRequest::with(['supply', 'issuer'])
+        $allRequests = DepartmentRequest::with([
+                'supply' => function ($q) { $q->withTrashed(); },
+                'issuer'
+            ])
             ->whereNotIn('department_name', ['SYSTEM RESTOCK', 'SYSTEM ADJUSTMENT', 'DELIVERY'])
             ->where('batch_id', 'not like', 'ADJ-%')
             ->where('batch_id', 'not like', 'DEL-%')
@@ -967,13 +1042,17 @@ class SupplyController extends Controller
 
         foreach ($groupedBatches as $key => $batch) {
             $hasPending = false;
+            $hasApproved = false;
             foreach ($batch['items'] as $item) {
                 if ($item->status === 'Pending') {
                     $hasPending = true;
                     break;
                 }
+                if ($item->status === 'Approved') {
+                    $hasApproved = true;
+                }
             }
-            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : 'Processed';
+            $groupedBatches[$key]['status'] = $hasPending ? 'Pending' : ($hasApproved ? 'Approved' : 'Denied');
         }
 
         $requestsCollection = collect(array_values($groupedBatches));
@@ -1223,6 +1302,13 @@ class SupplyController extends Controller
     
     public function printPettyCashRequest(Request $request)
     {
+        $now = \Carbon\Carbon::now()->timezone('Asia/Manila');
+        $portalMode = $this->getPortalMode($now);
+
+        if (in_array($portalMode, ['CLOSED_WEEKEND', 'CLOSED_OFF_HOURS'])) {
+            abort(403, 'Purchase Requisition Form (PRF) is closed outside operating hours (Mon-Fri, 8:00 AM - 5:00 PM).');
+        }
+
         $data = $request->validate([
             'department_name' => 'required|string',
             'requested_by' => 'required|string',
@@ -1372,7 +1458,8 @@ class SupplyController extends Controller
 
         return response()->json([
             'count' => $criticalItems->count(),
-            'items' => $criticalItems
+            'items' => $criticalItems,
+            'csrf_token' => csrf_token(),
         ]);
     }
     public function generateCriticalPR()

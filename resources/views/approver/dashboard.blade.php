@@ -257,8 +257,16 @@
                 fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
+                        if (!data) return;
+                        if (data.csrf_token) {
+                            const meta = document.querySelector('meta[name="csrf-token"]');
+                            if (meta) meta.setAttribute('content', data.csrf_token);
+                            document.querySelectorAll('input[name="_token"]').forEach(el => {
+                                el.value = data.csrf_token;
+                            });
+                        }
                         // Don't reload if they are actively looking at a modal
-                        if (data && typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) { 
+                        if (typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) { 
                             location.reload(); 
                         }
                     })

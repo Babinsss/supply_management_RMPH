@@ -1,5 +1,27 @@
 <x-layouts.admin title="Dashboard | Supply Hub">
     
+    @if(session('warning'))
+        <div class="alert alert-warning alert-dismissible fade show shadow-sm rounded-4 border-0 mb-4 py-3" role="alert">
+            <i class="bi bi-arrow-clockwise me-2 fs-5 align-middle"></i>
+            <span class="fw-bold">{{ session('warning') }}</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+    @if(session('danger'))
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm rounded-4 border-0 mb-4 py-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 align-middle"></i>
+            <span class="fw-bold">{{ session('danger') }}</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-4 border-0 mb-4 py-3" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 align-middle"></i>
+            <span class="fw-bold">{{ session('success') }}</span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <!-- TOP METRICS -->
     <div class="row g-4 mb-4">
         <div class="col-md-4">
@@ -137,7 +159,7 @@
             <div class="modal fade text-start" id="approveModal-{{ $batch['batch_id'] }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content bento-card p-2 border-0">
-                        <form action="/process-batch/{{ $batch['batch_id'] }}/approve" method="POST">
+                        <form action="/process-batch/{{ $batch['batch_id'] }}/approve" method="POST" onsubmit="return lockBatchSubmit(this)">
                             @csrf
                             <div class="modal-header border-0 pb-0">
                                 <h5 class="fw-bolder text-dark">Issue Request</h5>
@@ -145,10 +167,14 @@
                             </div>
                             <div class="modal-body">
                                 @php
+                                    $pendingModalItems = collect($batch['items'])->where('status', 'Pending');
                                     $hasOutOfStock = false;
                                     $totalFulfillable = 0;
-                                    foreach($batch['items'] as $req) {
-                                        $supplyQty = $req->supply?->quantity ?? 0;
+                                    foreach($pendingModalItems as $req) {
+                                        $normName = strtolower(trim($req->supply?->name ?? ''));
+                                        $supplyQty = ($normName !== '' && isset($combinedStockMap[$normName]))
+                                            ? $combinedStockMap[$normName]
+                                            : ($req->supply && !$req->supply->trashed() ? $req->supply->quantity : 0);
                                         if($supplyQty <= 0) $hasOutOfStock = true;
                                         $totalFulfillable += min($req->quantity, $supplyQty);
                                     }
@@ -160,6 +186,8 @@
                                     </div>
                                 @else
                                     <p class="text-muted-soft small mb-3">Adjust quantities before issuing. You cannot exceed stock.</p>
+                                @endif
+
                                 @php
                                     $batchPurpose = $batch['purpose'] ?? ($batch['items'][0]->purpose ?? null);
                                 @endphp
@@ -170,10 +198,14 @@
                                         <div class="text-dark fw-semibold mt-1">{{ $batchPurpose }}</div>
                                     </div>
                                 @endif
-                                @endif
 
-                                @foreach($batch['items'] as $req)
-                                @php $supplyQty = $req->supply?->quantity ?? 0; @endphp
+                                @foreach($pendingModalItems as $req)
+                                @php
+                                    $normName = strtolower(trim($req->supply?->name ?? ''));
+                                    $supplyQty = ($normName !== '' && isset($combinedStockMap[$normName]))
+                                        ? $combinedStockMap[$normName]
+                                        : ($req->supply && !$req->supply->trashed() ? $req->supply->quantity : 0);
+                                @endphp
                                 <div class="d-flex justify-content-between align-items-center mb-3 bg-body-tertiary p-3 rounded-4 border border-secondary-subtle shadow-sm {{ $supplyQty <= 0 ? 'opacity-75' : '' }}">
                                     <div class="pe-2">
                                         <div class="fw-bold text-dark fs-6">{{ $req->supply?->name ?? 'Deleted/Archived Item' }}</div>
@@ -309,6 +341,39 @@
         <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
         <script>
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = str ?? '';
+                return div.innerHTML;
+            }
+
+            function syncCsrfToken(token) {
+                if (!token) return;
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', token);
+                document.querySelectorAll('input[name="_token"]').forEach(input => {
+                    input.value = token;
+                });
+            }
+
+            function lockBatchSubmit(form) {
+                if (form.dataset.submitting === '1') {
+                    return false;
+                }
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                const tokenInput = form.querySelector('input[name="_token"]');
+                if (meta && tokenInput && meta.getAttribute('content')) {
+                    tokenInput.value = meta.getAttribute('content');
+                }
+                form.dataset.submitting = '1';
+                const btn = form.querySelector('button[type="submit"]');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Issuing...';
+                }
+                return true;
+            }
+
             // 1. SKELETON LOADERS
             document.addEventListener('DOMContentLoaded', () => {
                 const nodes = document.querySelectorAll('.timeline-card');
@@ -318,6 +383,7 @@
 
             // 2. APEXCHARTS RENDERER
             document.addEventListener('DOMContentLoaded', function () {
+                if (typeof ApexCharts === 'undefined') return;
                 var options = {
                     series: [{ name: 'Requests Processed', data: {!! json_encode($chartData ?? [0,0,0,0,0,0,0]) !!} }],
                     chart: { type: 'area', height: 80, sparkline: { enabled: true }, animations: { enabled: true, easing: 'easeinout', speed: 800 } },
@@ -329,17 +395,30 @@
                 new ApexCharts(document.querySelector("#requisitionChart"), options).render();
             });
 
-            // 3. SERVER ALERTS
-            @if(session('danger')) Swal.fire({ icon: 'error', title: 'Action Denied!', text: "{!! session('danger') !!}", confirmButtonColor: '#dc3545', backdrop: `rgba(220, 53, 69, 0.1)` }); @endif
-            @if(session('success')) Swal.fire({ icon: 'success', title: 'Success!', text: "{!! session('success') !!}", confirmButtonColor: '#198754', timer: 2000, showConfirmButton: false }); @endif
+            // 3. SERVER ALERTS (JSON-encoded so quotes/inch marks never break JS)
+            if (typeof Swal !== 'undefined') {
+                @if(session('warning'))
+                    Swal.fire({ icon: 'warning', title: 'Session Refreshed', text: @json(session('warning')), confirmButtonColor: '#f59e0b' });
+                @endif
+                @if(session('danger'))
+                    Swal.fire({ icon: 'error', title: 'Action Denied!', text: @json(session('danger')), confirmButtonColor: '#dc3545', backdrop: 'rgba(220, 53, 69, 0.1)' });
+                @endif
+                @if(session('success'))
+                    Swal.fire({ icon: 'success', title: 'Success!', text: @json(session('success')), confirmButtonColor: '#198754', timer: 2000, showConfirmButton: false });
+                @endif
+            }
 
-            // 4. QUEUE LIVE UPDATE
+            // 4. QUEUE LIVE UPDATE + AUTOMATIC CSRF SYNC
             let currentCount = parseInt("{{ $pending_count }}") || 0;
             setInterval(() => {
                 fetch('/api/pending-count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
-                        if (data && typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) {
+                        if (!data) return;
+                        if (data.csrf_token) {
+                            syncCsrfToken(data.csrf_token);
+                        }
+                        if (typeof data.count === 'number' && data.count !== currentCount && !document.querySelector('.modal.show')) {
                             location.reload();
                         }
                     })
@@ -363,20 +442,24 @@
             }
 
             // 6. THE SNITCH: AUTOMATED LOW-STOCK ALERTS (Now Clickable)
-            const Toast = Swal.mixin({
+            const Toast = typeof Swal !== 'undefined' ? Swal.mixin({
                 toast: true,
                 position: 'top-end',
                 showConfirmButton: false,
                 timer: 6000,
                 timerProgressBar: true
-            });
+            }) : null;
 
             function sniffLowStock() {
+                if (!Toast) return;
                 fetch('/api/low-stock', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                    .then(r => r.json())
+                    .then(r => r.ok ? r.json() : null)
                     .then(data => {
-                        if (data.count > 0) {
-                            let itemList = data.items.slice(0, 3).map(i => `<div class="text-start small mb-1"><strong class="text-danger">${i.quantity} left</strong> - ${i.name}</div>`).join('');
+                        if (data && data.csrf_token) {
+                            syncCsrfToken(data.csrf_token);
+                        }
+                        if (data && data.count > 0) {
+                            let itemList = data.items.slice(0, 3).map(i => `<div class="text-start small mb-1"><strong class="text-danger">${parseInt(i.quantity) || 0} left</strong> - ${escapeHtml(i.name)}</div>`).join('');
                             
                             if (data.count > 3) {
                                 itemList += `<div class="text-start small text-info mt-1 fw-bold text-decoration-underline"><i class="bi bi-hand-index-thumb me-1"></i>Click to view ${data.count} critical items...</div>`;
